@@ -15,6 +15,7 @@ import stbtt "vendor:stb/truetype"
 Image_Id :: enum {
 	nil,
 	player,
+	enemy,
 }
 
 Image :: struct {
@@ -117,12 +118,8 @@ pack_images_into_atlas :: proc() {
 			mem.copy(dest_row, src_row, auto_cast rect.w * 4)
 		}
 
-		// yeet old data
 		stbi.image_free(img.data)
 		img.data = nil
-
-		// img.atlas_x = auto_cast rect.x
-		// img.atlas_y = auto_cast rect.y
 
 		img.atlas_uvs.x = cast(f32)rect.x / cast(f32)atlas.w
 		img.atlas_uvs.y = cast(f32)rect.y / cast(f32)atlas.h
