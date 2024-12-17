@@ -129,6 +129,12 @@ load_map_into_tiles :: proc(tiles: []Tile) {
 				t.type = 1
 			}else if r == 65 && g  == 110 && b == 107{
 				t.type = 2
+			}else if r == 87 && g == 79 && b == 51 {
+				t.type = 3
+			}else if r == 110 && g == 100 && b == 65 {
+				t.type = 4
+			}else if r == 117 && g == 107 && b == 69 {
+				t.type = 5
 			}else {
 				t.type = 0
 			}
@@ -161,31 +167,32 @@ world_pos_to_tile_pos :: proc(world_pos: Vector2) -> Tile_Pos {
 
 // :tile
 draw_tiles :: proc(gs: Game_State, player: Entity) {
+	visible_margin := 2
+	min_x := max(0,0)
+	max_x := min(WORLD_W, WORLD_W)
+	min_y := max(0,0)
+	max_y := min(WORLD_H, WORLD_H)
 
-	player_tile := world_pos_to_tile_pos(player.pos)
+	for x := min_x; x < max_x; x += 1 {
+		for y := min_y; y < max_y; y += 1 {
+			tile_pos := array_tile_pos_to_world_tile(x, y)
+			tile_pos_world := tile_pos_to_world_pos(tile_pos)
+			tile := gs.tiles[x + y * WORLD_W]
 
-	zoom := 0.5
-	
-	tile_view_radius_x := int(math.ceil(24 / zoom))
-	tile_view_radius_y := int(math.ceil(20 / zoom))
-	
-	tiles := get_tiles_in_box_radius(player.pos, {tile_view_radius_x, tile_view_radius_y})
-	for tile_pos in tiles {
-		tile_pos_world := tile_pos_to_world_pos(tile_pos)
-			
-		tile := get_tile(gs, tile_pos)
+			if tile.type != 0{
+				col := COLOR_WHITE
 
-		if tile.type != 0 {
-			col := COLOR_WHITE
+				switch tile.type {
+                    case 1: col = v4{0.255, 0.502, 0.243, 1.0}
+                    case 2: col = v4{0.255, 0.431, 0.42, 1.0}
+                    case 3: col = v4{0.341, 0.31, 0.2, 1.0}
+                    case 4: col = v4{0.431, 0.392, 0.255, 1.0}
+                    case 5: col = v4{0.459, 0.431, 0.267, 1.0}
+                }
 
-			switch tile.type {
-				case 1: col = v4{0.255, 0.502, 0.243, 1.0}
-				case 2: col = v4{0.255, 0.431, 0.42, 1.0}
+				draw_rect_aabb(tile_pos_world, v2{TILE_LENGTH, TILE_LENGTH}, col=col)
 			}
-			
-			draw_rect_aabb(tile_pos_world, v2{TILE_LENGTH, TILE_LENGTH}, col=col)
 		}
-
 	}
 }
 
@@ -200,14 +207,16 @@ Game_State :: struct {
 	latest_entity_handle: Entity_Handle,
 	
 	tiles: [WORLD_W * WORLD_H]Tile,
+
+	player_level: int,
+	player_experience: int,
+	wave_number: int,
+	wave_time: f32,
 }
 
 Message_Kind :: enum {
-	move_left,
-	move_right,
-	move_up,
-	move_down,
 	create_player,
+	shoot,
 }
 
 Message :: struct {
@@ -253,12 +262,16 @@ Entity :: struct {
 	kind: Entity_Kind,
 	flags: bit_set[Entity_Flags],
 	pos: Vector2,
-	vel: Vector2,
-	acc: Vector2,
 	user_id: UserID,
 	
+	health: int,
+	max_health: int,
+	damage: int,
+	attack_speed: f32,
+	attack_timer: f32,
+
 	frame: struct{
-		input_axis: Vector2,
+
 	}
 }
 
@@ -304,7 +317,15 @@ entity_destroy :: proc(gs:^Game_State, entity: ^Entity) {
 
 setup_player :: proc(e: ^Entity) {
 	e.kind = .player
-	e.flags |= { .physics }
+	e.flags |= { .allocated }
+
+	e.pos = v2{-900,-500}
+
+	e.health = 100
+	e.max_health = 100
+	e.damage = 10
+	e.attack_speed = 1.0
+	e.attack_timer = 0.0
 }
 
 
@@ -347,91 +368,20 @@ sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 		}
 	}
 	
-	for msg in messages {
-		en := handle_to_entity(gs, msg.from_entity)
-		#partial switch msg.kind {
-			case .move_left: {
-				en.frame.input_axis.x += -1.0
-			}
-			case .move_right: {
-				en.frame.input_axis.x += 1.0
-			}
-			case .move_down: {
-				en.frame.input_axis.y += -1.0
-			}
-			case .move_up: {
-				en.frame.input_axis.y += 1.0
-			}
-		}
-	}
-	
 	for &en in gs.entities {
 		// :player
 		if en.kind == .player {
-			speed := 400.0
-			en.vel.x = en.frame.input_axis.x * auto_cast (speed)
-			en.vel.y = en.frame.input_axis.y * auto_cast (speed)
-		}
-	}
-	
-	// :physics
-	for &en in gs.entities {
-		if .physics in en.flags {
-		
-			en.vel += en.acc * f32(delta_t)
-			next_pos := en.pos + en.vel * f32(delta_t)
-			en.acc = {}
-			
-			tiles := get_tiles_in_box_radius(next_pos, {4, 4})
-			for tile_pos in tiles {
-				tile := get_tile(gs^, tile_pos)
-				if tile.type != 2 {
-					continue
-				}
-			
-				self_aabb := get_aabb_from_entity(en)
-				self_aabb = aabb_shift(self_aabb, next_pos)
-				against_aabb := aabb_make(tile_pos_to_world_pos(tile_pos), v2{TILE_LENGTH,TILE_LENGTH}, Pivot.bottom_left)
-				
-				collide, depth := aabb_collide_aabb(self_aabb, against_aabb)
-				if collide {
-					next_pos += depth
-					
-					if math.abs(linalg.vector_dot(linalg.normalize(depth), v2{0, 1})) > 0.9 {
-						en.vel.y = 0
-					}
-				}
+			en.attack_timer -= f32(delta_t)
+			if en.attack_timer <= 0 {
+				// SHOOT HERE
+				en.attack_timer = 1.0
 			}
-			
-			en.pos = next_pos		
 		}
 	}
 }
 
 //
 // :draw :user
-
-get_camera_bounds :: proc(zoom: f32) -> (min: Vector2, max: Vector2){
-	world_width := f32(WORLD_W * TILE_LENGTH)
-	world_height := f32(WORLD_H * TILE_LENGTH)
-
-	viewport_width := f32(window_w) / zoom
-	viewport_height := f32(window_h) / zoom
-
-	min_x := -(world_width * 0.5) + viewport_width * 0.5
-	min_y := -(world_height * 0.5) + viewport_height * 0.5
-	max_x := (world_width * 0.5) - viewport_width * 0.5
-	max_y := (world_height * 0.5) - viewport_height * 0.5
-
-	return Vector2{min_x, min_y}, Vector2{max_x, max_y}
-}
-
-clamp_vector2 :: proc(v: Vector2, min: Vector2, max: Vector2) -> Vector2 {
-	return Vector2{
-		clamp(v.x, min.x, max.x),
-		clamp(v.y, min.y, max.y),
-	}
-}
 
 draw_game_state :: proc(gs: Game_State, input_state: Input_State, messages_out: ^[dynamic]Message) {
 	using linalg
@@ -449,47 +399,33 @@ draw_game_state :: proc(gs: Game_State, input_state: Input_State, messages_out: 
 	if player_handle == 0 {
 		append(messages_out, (Message){ kind=.create_player, create_player={ user_id=app_state.user_id } })
 	}
-	
 
-	draw_frame.projection = matrix_ortho3d_f32(window_w * -0.5, window_w * 0.5, window_h * -0.5, window_h * 0.5, -1, 1)
+	map_width := f32(WORLD_W * TILE_LENGTH) // 2048
+	map_height := f32(WORLD_H * TILE_LENGTH) // 1280
+
+	scale_x := window_w / map_width
+	scale_y := window_h / map_height
+	scale := min(scale_x, scale_y)
+	
+	draw_frame.projection = matrix_ortho3d_f32(
+        -map_width * 0.5,  // left
+        map_width * 0.5,   // right
+        -map_height * 0.5, // bottom
+        map_height * 0.5,  // top
+        -1, 1
+    )
 
 	// :camera
-	{
-		zoom := f32(1.4)
-		min_bounds, max_bounds := get_camera_bounds(zoom)
+	draw_frame.camera_xform = Matrix4(1)
 
-		target_pos := -player.pos
-		clamped_pos := clamp_vector2(target_pos, min_bounds, max_bounds)
-		
-		animate_to_target_v2(&app_state.camera_pos, clamped_pos, auto_cast sapp.frame_duration())
-		draw_frame.camera_xform = Matrix4(1)
-		draw_frame.camera_xform *= xform_scale(zoom)
-		draw_frame.camera_xform *= xform_translate(app_state.camera_pos)
-	}
 	
 	draw_tiles(gs, player)
 	
-	draw_text(v2{50, 80}, "Testing", scale=4.0)
+	//draw_text(v2{50, 80}, "Testing", scale=4.0)
 	
 	for en in gs.entities {
 		#partial switch en.kind {
 			case .player: draw_player(en)
-		}
-	}
-	
-	// :input
-	if player_handle != 0 {	
-		if key_down(input_state, auto_cast 'A') {
-			add_message(messages_out, {kind=.move_left, from_entity=player_handle})
-		}
-		if key_down(input_state, auto_cast 'D') {
-			add_message(messages_out, {kind=.move_right, from_entity=player_handle})
-		}
-		if key_down(input_state, auto_cast 'S'){
-			add_message(messages_out, {kind=.move_down, from_entity=player_handle})
-		}
-		if key_down(input_state, auto_cast 'W'){
-			add_message(messages_out, {kind=.move_up, from_entity=player_handle})
 		}
 	}
 }
@@ -499,7 +435,7 @@ draw_player :: proc(en: Entity) {
 	img := Image_Id.player
 	
 	xform := Matrix4(1)
-	xform *= xform_scale(v2{1,1})
+	xform *= xform_scale(v2{5,5})
 	
 	draw_sprite(en.pos, img, pivot=.bottom_center, xform=xform)
 

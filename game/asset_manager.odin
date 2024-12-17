@@ -15,7 +15,6 @@ import stbtt "vendor:stb/truetype"
 Image_Id :: enum {
 	nil,
 	player,
-	anim_archer_shooting,
 }
 
 Image :: struct {
@@ -27,10 +26,6 @@ Image :: struct {
 }
 images: [128]Image
 image_count: int
-
-init_animations :: proc() {
-	// TODO
-}
 
 init_images :: proc() {
 	using fmt
@@ -78,18 +73,13 @@ Atlas :: struct {
 	sg_image: sg.Image,
 }
 atlas: Atlas
-// We're hardcoded to use just 1 atlas now since I don't think we'll need more
-// It would be easy enough to extend though. Just add in more texture slots in the shader
+
 pack_images_into_atlas :: proc() {
-
-	// TODO - add a single pixel of padding for each so we avoid the edge oversampling issue
-
-	// 8192 x 8192 is the WGPU recommended max I think
 	atlas.w = 128
 	atlas.h = 128
 
 	cont: stbrp.Context
-	nodes: [128]stbrp.Node // #volatile with atlas.w
+	nodes: [128]stbrp.Node
 	stbrp.init_target(&cont, auto_cast atlas.w, auto_cast atlas.h, &nodes[0], auto_cast atlas.w)
 
 	rects: [dynamic]stbrp.Rect

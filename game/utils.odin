@@ -6,6 +6,14 @@ import "core:math"
 import "core:math/linalg"
 import t "core:time"
 
+DEBUG_FLAGS :: struct {
+	mouse_pos: bool,
+}
+
+DEBUG :: DEBUG_FLAGS {
+	mouse_pos = true, // Change to false after testing
+}
+
 DEFAULT_UV :: v4{0, 0, 1, 1}
 Vector2i :: [2]int
 Vector2 :: [2]f32
@@ -19,8 +27,7 @@ Matrix4 :: linalg.Matrix4f32
 COLOR_WHITE :: Vector4{1, 1, 1, 1}
 COLOR_RED :: Vector4{1, 0, 0, 1}
 
-// might do something with these later on
-loggie :: fmt.println // log is already used........
+loggie :: fmt.println
 log_error :: fmt.println
 log_warning :: fmt.println
 

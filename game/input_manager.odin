@@ -1,6 +1,9 @@
 package main
 
 import sapp "../sokol/app"
+import slog "../sokol/log"
+import "core:math/linalg"
+
 
 Input_State_Flags :: enum {
 	down,
