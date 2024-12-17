@@ -234,6 +234,8 @@ Game_State :: struct {
 	wave_spawn_timer:     f32,
 	wave_spawn_rate:      f32,
 	enemies_to_spawn:     int,
+	available_points:     int, // Experience
+	currency_points:      int, // Currency
 }
 
 Message_Kind :: enum {
@@ -268,6 +270,10 @@ add_message :: proc(messages: ^[dynamic]Message, new_message: Message) -> ^Messa
 
 //
 // :ENTITY
+
+EXPERIENCE_PER_LEVEL :: 100
+EXPERIENCE_PER_ENEMY :: 3
+POINTS_PER_ENEMY :: 1
 
 Enemy_state :: enum {
 	idle,
@@ -305,6 +311,8 @@ Entity :: struct {
 	state:        Enemy_state,
 	target:       ^Entity,
 	frame:        struct {},
+	level:        int, // Current level
+	experience:   int, // Current currency
 }
 
 Entity_Handle :: u64
@@ -375,6 +383,25 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2) {
 	e.enemy_type = 1
 }
 
+calculate_exp_for_level :: proc(level: int) -> int {
+	return EXPERIENCE_PER_LEVEL * level
+}
+
+add_experience :: proc(gs: ^Game_State, player: ^Entity, exp_amount: int) {
+	player.experience += exp_amount
+	exp_needed := calculate_exp_for_level(player.level)
+
+	for player.experience >= exp_needed {
+		player.experience -= exp_needed
+		player.level += 1
+		gs.available_points += 1
+		exp_needed = calculate_exp_for_level(player.level)
+	}
+}
+
+add_currency_points :: proc(gs: ^Game_State, points: int) {
+	gs.currency_points += points
+}
 
 //
 // THE GAMEPLAY LINE
@@ -469,6 +496,7 @@ sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 						entity_destroy(gs, &en)
 
 						if target.health <= 0 {
+							when_enemy_dies(gs, &target)
 							entity_destroy(gs, &target)
 						}
 						break
@@ -604,6 +632,17 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
 	e.damage = 10
 }
 
+when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
+	for &en in gs.entities {
+		if en.kind == .player {
+			add_experience(gs, &en, EXPERIENCE_PER_ENEMY)
+			break
+		}
+	}
+
+	add_currency_points(gs, POINTS_PER_ENEMY)
+}
+
 //
 // :waves
 SPAWN_MARGIN :: 100 // Some margin for the enemies to spawn on the right side of the screen (OUTSIDE)
@@ -683,8 +722,6 @@ draw_game_state :: proc(
 
 	draw_tiles(gs, player)
 
-	//draw_text(v2{50, 80}, "Testing", scale=4.0)
-
 	for en in gs.entities {
 		#partial switch en.kind {
 		case .player:
@@ -693,6 +730,25 @@ draw_game_state :: proc(
 			draw_enemy(en)
 		case .player_projectile:
 			draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+		}
+	}
+
+	for en in gs.entities {
+		if en.kind == .player && en.user_id == app_state.user_id {
+			ui_base_pos := v2{-1000, 600}
+
+			level_text := fmt.tprintf("Current Level: %d", en.level)
+			draw_text(ui_base_pos, level_text, scale = 2.0)
+
+			if gs.available_points > 0 {
+				points_text := fmt.tprintf("Available Points: %d", gs.available_points)
+				draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
+			}
+
+			currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+			draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+
+			break
 		}
 	}
 }
