@@ -119,6 +119,8 @@ frame_init :: proc "c" () {
 		temp_gs := new_clone(app_state.game)
 		sim_game_state(temp_gs, dt, app_state.message_queue[:])
 
+		app_state.game.state_kind = temp_gs.state_kind
+
 		draw_game_state(temp_gs^, app_state.input_state, &app_state.message_queue)
 	} else {
 		draw_game_state(app_state.game, app_state.input_state, &app_state.message_queue)

@@ -214,16 +214,21 @@ draw_tiles :: proc(gs: Game_State, player: Entity) {
 }
 
 first_time_init_game_state :: proc(gs: ^Game_State) {
-	load_map_into_tiles(gs.tiles[:])
+	gs.state_kind = .MENU
 
-	test_enemy := entity_create(gs)
-	if test_enemy != nil {
-		setup_enemy(test_enemy, v2{0, -500})
-	}
+	load_map_into_tiles(gs.tiles[:])
 }
 
+//
+// :GAME STATE
+
+Game_State_Kind :: enum {
+	MENU,
+	PLAYING,
+}
 
 Game_State :: struct {
+	state_kind:           Game_State_Kind,
 	tick_index:           u64,
 	entities:             [128]Entity,
 	latest_entity_handle: Entity_Handle,
@@ -267,6 +272,7 @@ add_message :: proc(messages: ^[dynamic]Message, new_message: Message) -> ^Messa
 	index := append(messages, new_message) - 1
 	return &messages[index]
 }
+
 
 //
 // :ENTITY
@@ -415,110 +421,127 @@ FOV_RANGE :: 1000.0 // Range in which the player can detect enemies
 sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 	defer gs.tick_index += 1
 
-	for &en in gs.entities {
-		en.frame = {}
-	}
+	#partial switch gs.state_kind {
+	case .MENU:
+		mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+		button_bounds := AABB {
+			-MENU_BUTTON_WIDTH * 0.5,
+			-MENU_BUTTON_HEIGHT * 0.5,
+			MENU_BUTTON_WIDTH * 0.5,
+			MENU_BUTTON_HEIGHT * 0.5,
+		}
 
-	for msg in messages {
-		#partial switch msg.kind {
-		case .create_player:
-			{
-
-				user_id := msg.create_player.user_id
-				assert(user_id != 0, "invalid user id")
-
-				existing_user := false
-				for en in gs.entities {
-					if en.user_id == user_id {
-						existing_user = true
-						break
-					}
-				}
-
-				if !existing_user {
-					e := entity_create(gs)
-					setup_player(e)
-					e.user_id = user_id
-				}
-
+		if aabb_contains(button_bounds, mouse_pos) {
+			if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+				gs.state_kind = .PLAYING
 			}
 		}
-	}
-
-	for &en in gs.entities {
-		// :player
-		if en.kind == .player {
-			en.attack_timer -= f32(delta_t)
-
-			targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
-
-			if DEBUG.player_fov {
-				debug_draw_fov_range(en.pos, FOV_RANGE)
-			}
-
-			if en.attack_timer <= 0 && len(targets) > 0 {
-				// Here we have a target in range and we can actually shoot.
-				closest_enemy := targets[0].entity
-
-				projectile := entity_create(gs)
-
-				if projectile != nil {
-					setup_projectile(projectile, en.pos, closest_enemy.pos)
-				}
-
-				en.attack_timer = 1.0 / en.attack_speed
-			}
+	case .PLAYING:
+		for &en in gs.entities {
+			en.frame = {}
 		}
-		//:enemy
-		if en.kind == .enemy {
-			process_enemy_behaviour(&en, gs, f32(delta_t))
-		}
-		// :player_projectile
-		if en.kind == .player_projectile {
-			SUB_STEPS :: 4
-			dt := f32(delta_t) / f32(SUB_STEPS)
 
-			for step in 0 ..< SUB_STEPS {
-				if !(.allocated in en.flags) do break
+		for msg in messages {
+			#partial switch msg.kind {
+			case .create_player:
+				{
 
-				en.direction.y -= PROJECTILE_GRAVITY * dt
+					user_id := msg.create_player.user_id
+					assert(user_id != 0, "invalid user id")
 
-				movement := v2{en.direction.x * dt, en.direction.y * dt}
-				new_pos := en.pos + movement
-
-				for &target in gs.entities {
-					if target.kind != .enemy do continue
-					if !(.allocated in target.flags) do continue
-
-					dist := linalg.length(target.pos - en.pos)
-					if dist <= 100.0 {
-						target.health -= en.damage
-						entity_destroy(gs, &en)
-
-						if target.health <= 0 {
-							when_enemy_dies(gs, &target)
-							entity_destroy(gs, &target)
+					existing_user := false
+					for en in gs.entities {
+						if en.user_id == user_id {
+							existing_user = true
+							break
 						}
-						break
 					}
+
+					if !existing_user {
+						e := entity_create(gs)
+						setup_player(e)
+						e.user_id = user_id
+					}
+
+				}
+			}
+		}
+
+		for &en in gs.entities {
+			// :player
+			if en.kind == .player {
+				en.attack_timer -= f32(delta_t)
+
+				targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
+
+				if DEBUG.player_fov {
+					debug_draw_fov_range(en.pos, FOV_RANGE)
 				}
 
-				if .allocated in en.flags {
-					en.pos = new_pos
+				if en.attack_timer <= 0 && len(targets) > 0 {
+					// Here we have a target in range and we can actually shoot.
+					closest_enemy := targets[0].entity
 
-					if linalg.length(en.pos) > 2000 || en.pos.y < -1000 {
-						entity_destroy(gs, &en)
+					projectile := entity_create(gs)
+
+					if projectile != nil {
+						setup_projectile(projectile, en.pos, closest_enemy.pos)
+					}
+
+					en.attack_timer = 1.0 / en.attack_speed
+				}
+			}
+			//:enemy
+			if en.kind == .enemy {
+				process_enemy_behaviour(&en, gs, f32(delta_t))
+			}
+			// :player_projectile
+			if en.kind == .player_projectile {
+				SUB_STEPS :: 4
+				dt := f32(delta_t) / f32(SUB_STEPS)
+
+				for step in 0 ..< SUB_STEPS {
+					if !(.allocated in en.flags) do break
+
+					en.direction.y -= PROJECTILE_GRAVITY * dt
+
+					movement := v2{en.direction.x * dt, en.direction.y * dt}
+					new_pos := en.pos + movement
+
+					for &target in gs.entities {
+						if target.kind != .enemy do continue
+						if !(.allocated in target.flags) do continue
+
+						dist := linalg.length(target.pos - en.pos)
+						if dist <= 100.0 {
+							target.health -= en.damage
+							entity_destroy(gs, &en)
+
+							if target.health <= 0 {
+								when_enemy_dies(gs, &target)
+								entity_destroy(gs, &target)
+							}
+							break
+						}
+					}
+
+					if .allocated in en.flags {
+						en.pos = new_pos
+
+						if linalg.length(en.pos) > 2000 || en.pos.y < -1000 {
+							entity_destroy(gs, &en)
+						}
 					}
 				}
 			}
 		}
-	}
 
-	if gs.wave_number == 0 {
-		init_wave(gs, 1)
-	}
+		if gs.wave_number == 0 {
+			init_wave(gs, 1)
+		}
 
-	process_wave(gs, delta_t)
+		process_wave(gs, delta_t)
+	}
 }
 
 //
@@ -684,23 +707,6 @@ draw_game_state :: proc(
 ) {
 	using linalg
 
-	player: Entity
-	player_handle: Entity_Handle
-	for en in gs.entities {
-		if en.kind == .player && en.user_id == app_state.user_id {
-			player = en
-			player_handle = entity_to_handle(gs, player)
-			break
-		}
-	}
-
-	if player_handle == 0 {
-		append(
-			messages_out,
-			(Message){kind = .create_player, create_player = {user_id = app_state.user_id}},
-		)
-	}
-
 	map_width := f32(WORLD_W * TILE_LENGTH) // 2048
 	map_height := f32(WORLD_H * TILE_LENGTH) // 1280
 
@@ -720,35 +726,57 @@ draw_game_state :: proc(
 	// :camera
 	draw_frame.camera_xform = Matrix4(1)
 
-	draw_tiles(gs, player)
-
-	for en in gs.entities {
-		#partial switch en.kind {
-		case .player:
-			draw_player(en)
-		case .enemy:
-			draw_enemy(en)
-		case .player_projectile:
-			draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
-		}
-	}
-
-	for en in gs.entities {
-		if en.kind == .player && en.user_id == app_state.user_id {
-			ui_base_pos := v2{-1000, 600}
-
-			level_text := fmt.tprintf("Current Level: %d", en.level)
-			draw_text(ui_base_pos, level_text, scale = 2.0)
-
-			if gs.available_points > 0 {
-				points_text := fmt.tprintf("Available Points: %d", gs.available_points)
-				draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
+	#partial switch gs.state_kind {
+	case .MENU:
+		draw_menu(gs)
+	case .PLAYING:
+		player: Entity
+		player_handle: Entity_Handle
+		for en in gs.entities {
+			if en.kind == .player && en.user_id == app_state.user_id {
+				player = en
+				player_handle = entity_to_handle(gs, player)
+				break
 			}
+		}
 
-			currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-			draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+		if player_handle == 0 {
+			append(
+				messages_out,
+				(Message){kind = .create_player, create_player = {user_id = app_state.user_id}},
+			)
+		}
 
-			break
+		draw_tiles(gs, player)
+
+		for en in gs.entities {
+			#partial switch en.kind {
+			case .player:
+				draw_player(en)
+			case .enemy:
+				draw_enemy(en)
+			case .player_projectile:
+				draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+			}
+		}
+
+		for en in gs.entities {
+			if en.kind == .player && en.user_id == app_state.user_id {
+				ui_base_pos := v2{-1000, 600}
+
+				level_text := fmt.tprintf("Current Level: %d", en.level)
+				draw_text(ui_base_pos, level_text, scale = 2.0)
+
+				if gs.available_points > 0 {
+					points_text := fmt.tprintf("Available Points: %d", gs.available_points)
+					draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
+				}
+
+				currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+				draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+
+				break
+			}
 		}
 	}
 }
@@ -771,6 +799,19 @@ draw_enemy :: proc(en: Entity) {
 	xform *= xform_scale(v2{5, 5})
 
 	draw_sprite(en.pos, img, pivot = .bottom_center, xform = xform)
+}
+
+screen_to_world_pos :: proc(screen_pos: Vector2) -> Vector2 {
+	map_width := f32(WORLD_W * TILE_LENGTH)
+	map_height := f32(WORLD_H * TILE_LENGTH)
+
+	normalized_x := (screen_pos.x / f32(window_w)) * 2.0 - 1.0
+	normalized_y := -((screen_pos.y / f32(window_h)) * 2.0 - 1.0)
+
+	world_x := normalized_x * (map_width * 0.5)
+	world_y := normalized_y * (map_height * 0.5)
+
+	return Vector2{world_x, world_y}
 }
 
 //
@@ -865,4 +906,23 @@ animate_to_target_v2 :: proc(value: ^Vector2, target: Vector2, delta_t: f32, rat
 
 almost_equals :: proc(a: f32, b: f32, epsilon: f32 = 0.001) -> bool {
 	return abs(a - b) <= epsilon
+}
+
+//
+// : Menus
+
+MENU_BUTTON_WIDTH :: 200.0
+MENU_BUTTON_HEIGHT :: 50.0
+
+draw_menu :: proc(gs: Game_State) {
+	button_pos := v2{-MENU_BUTTON_WIDTH * 0.5, 0}
+
+	draw_rect_aabb(
+		button_pos,
+		v2{MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT},
+		col = v4{0.2, 0.3, 0.8, 1.0},
+	)
+
+	text_pos := button_pos + v2{MENU_BUTTON_WIDTH * 0.2, MENU_BUTTON_HEIGHT * 0.3}
+	draw_text(text_pos, "Play", scale = 2.0)
 }

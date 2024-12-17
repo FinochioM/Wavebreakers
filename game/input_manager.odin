@@ -13,7 +13,8 @@ Input_State_Flags :: enum {
 }
 
 Input_State :: struct {
-	keys: [MAX_KEYCODES]bit_set[Input_State_Flags],
+	keys:      [MAX_KEYCODES]bit_set[Input_State_Flags],
+	mouse_pos: Vector2,
 }
 
 reset_input_state_for_next_frame :: proc(state: ^Input_State) {
@@ -61,5 +62,7 @@ event :: proc "c" (event: ^sapp.Event) {
 		if event.key_repeat {
 			input_state.keys[event.key_code] += {.repeat}
 		}
+	case .MOUSE_MOVE:
+		input_state.mouse_pos = {event.mouse_x, event.mouse_y}
 	}
 }
