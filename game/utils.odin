@@ -7,11 +7,13 @@ import "core:math/linalg"
 import t "core:time"
 
 DEBUG_FLAGS :: struct {
-	mouse_pos: bool,
+	mouse_pos:  bool,
+	player_fov: bool,
 }
 
 DEBUG :: DEBUG_FLAGS {
-	mouse_pos = true, // Change to false after testing
+	mouse_pos  = true, // Change to false after testing
+	player_fov = true,
 }
 
 DEFAULT_UV :: v4{0, 0, 1, 1}
@@ -88,4 +90,24 @@ scale_from_pivot :: proc(pivot: Pivot) -> Vector2 {
 
 sine_breathe :: proc(p: $T) -> T where intrinsics.type_is_float(T) {
 	return (math.sin((p - .25) * 2.0 * math.PI) / 2.0) + 0.5
+}
+
+debug_draw_fov_range :: proc(center: Vector2, radius: f32) {
+	segments :: 32
+	angle_step :: 2 * math.PI / f32(segments)
+
+	for i := 0; i < segments; i += 1 {
+		angle := f32(i) * angle_step
+		next_angle := f32(i + 1) * angle_step
+
+		p1 := center + Vector2{math.cos(angle), math.sin(angle)} * radius
+		p2 := center + Vector2{math.cos(next_angle), math.sin(next_angle)} * radius
+
+		// Draw line segment
+		draw_rect_aabb(
+			p1,
+			p2 - p1,
+			col = {1, 0, 0, 1.0}, // Semi-transparent red
+		)
+	}
 }

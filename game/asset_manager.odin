@@ -175,10 +175,6 @@ draw_text :: proc(pos: Vector2, text: string, scale := 1.0) {
 			&q,
 			false,
 		)
-		// this is the the data for the aligned_quad we're given, with y+ going down
-		// x0, y0,     s0, t0, // top-left
-		// x1, y1,     s1, t1, // bottom-right
-
 
 		size := v2{abs(q.x0 - q.x1), abs(q.y0 - q.y1)}
 

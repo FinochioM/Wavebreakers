@@ -284,6 +284,7 @@ Entity_Kind :: enum {
 	nil,
 	player,
 	enemy,
+	player_projectile,
 }
 
 Entity :: struct {
@@ -291,6 +292,7 @@ Entity :: struct {
 	kind:         Entity_Kind,
 	flags:        bit_set[Entity_Flags],
 	pos:          Vector2,
+	direction:    Vector2,
 	user_id:      UserID,
 	health:       int,
 	max_health:   int,
@@ -364,7 +366,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2) {
 	e.flags |= {.allocated}
 
 	e.pos = pos
-	e.health = 100
+	e.health = 10
 	e.max_health = 100
 	e.damage = 5
 	e.state = .moving
@@ -380,6 +382,8 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2) {
 
 //
 // :sim
+
+FOV_RANGE :: 1000.0 // Range in which the player can detect enemies
 
 sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 	defer gs.tick_index += 1
@@ -418,13 +422,67 @@ sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 		// :player
 		if en.kind == .player {
 			en.attack_timer -= f32(delta_t)
-			if en.attack_timer <= 0 {
-				// SHOOT HERE
-				en.attack_timer = 1.0
+
+			targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
+
+			if DEBUG.player_fov {
+				debug_draw_fov_range(en.pos, FOV_RANGE)
+			}
+
+			if en.attack_timer <= 0 && len(targets) > 0 {
+				// Here we have a target in range and we can actually shoot.
+				closest_enemy := targets[0].entity
+
+				projectile := entity_create(gs)
+
+				if projectile != nil {
+					setup_projectile(projectile, en.pos, closest_enemy.pos)
+				}
+
+				en.attack_timer = 1.0 / en.attack_speed
 			}
 		}
+		//:enemy
 		if en.kind == .enemy {
 			process_enemy_behaviour(&en, gs, f32(delta_t))
+		}
+		// :player_projectile
+		if en.kind == .player_projectile {
+			SUB_STEPS :: 4
+			dt := f32(delta_t) / f32(SUB_STEPS)
+
+			for step in 0 ..< SUB_STEPS {
+				if !(.allocated in en.flags) do break
+
+				en.direction.y -= PROJECTILE_GRAVITY * dt
+
+				movement := v2{en.direction.x * dt, en.direction.y * dt}
+				new_pos := en.pos + movement
+
+				for &target in gs.entities {
+					if target.kind != .enemy do continue
+					if !(.allocated in target.flags) do continue
+
+					dist := linalg.length(target.pos - en.pos)
+					if dist <= 100.0 {
+						target.health -= en.damage
+						entity_destroy(gs, &en)
+
+						if target.health <= 0 {
+							entity_destroy(gs, &target)
+						}
+						break
+					}
+				}
+
+				if .allocated in en.flags {
+					en.pos = new_pos
+
+					if linalg.length(en.pos) > 2000 || en.pos.y < -1000 {
+						entity_destroy(gs, &en)
+					}
+				}
+			}
 		}
 	}
 
@@ -477,6 +535,73 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		// Attack logic will go here later
 		fmt.printf("Attacking\n")
 	}
+}
+
+Enemy_Target :: struct {
+	entity:   ^Entity,
+	distance: f32,
+}
+
+find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) -> []Enemy_Target {
+	targets: [dynamic]Enemy_Target
+	targets.allocator = context.temp_allocator
+
+	for &en in gs.entities {
+		if en.kind != .enemy do continue // Only enemies
+		if !(.allocated in en.flags) do continue // Only allocated entities (not destroyed)
+
+		direction := en.pos - source_pos
+		distance := linalg.length(direction)
+
+		if distance <= range {
+			append(&targets, Enemy_Target{entity = &en, distance = distance})
+		}
+	}
+
+	if len(targets) > 1 {
+		// Sort with a simple bubble sorting algorithm for now.
+		for i := 0; i < len(targets) - 1; i += 1 {
+			for j := 0; j < len(targets) - i - 1; j += 1 {
+				if targets[j].distance > targets[j + 1].distance {
+					targets[j], targets[j + 1] = targets[j + 1], targets[j]
+				}
+			}
+		}
+	}
+
+	return targets[:]
+}
+
+PROJECTILE_SPEED :: 600.0
+PROJECTILE_SIZE :: v2{32, 32}
+PROJECTILE_GRAVITY :: 980.0
+PROJECTILE_INITIAL_Y_VELOCITY :: 400.0
+
+setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
+	e.kind = .player_projectile
+	e.flags |= {.allocated}
+
+	player_height := 32.0 * 5.0
+	spawn_position := pos + v2{0, auto_cast player_height * 0.5}
+	e.pos = spawn_position
+
+	to_target := target_pos - spawn_position
+	distance := linalg.length(to_target)
+	direction := linalg.normalize(to_target)
+
+	flight_time := max(distance / 600.0, 0.5)
+
+	gravity := PROJECTILE_GRAVITY
+	dx := distance
+	dy := target_pos.y - spawn_position.y
+
+	vx := dx / flight_time
+	vy := (dy + 0.5 * auto_cast gravity * flight_time * flight_time) / flight_time
+
+	e.direction = {direction.x * vx, vy}
+
+	//e.speed = PROJECTILE_SPEED
+	e.damage = 10
 }
 
 //
@@ -566,6 +691,8 @@ draw_game_state :: proc(
 			draw_player(en)
 		case .enemy:
 			draw_enemy(en)
+		case .player_projectile:
+			draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
 		}
 	}
 }
