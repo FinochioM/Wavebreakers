@@ -225,6 +225,7 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 Game_State_Kind :: enum {
 	MENU,
 	PLAYING,
+	PAUSED,
 }
 
 Game_State :: struct {
@@ -421,9 +422,10 @@ FOV_RANGE :: 1000.0 // Range in which the player can detect enemies
 sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 	defer gs.tick_index += 1
 
+	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+
 	#partial switch gs.state_kind {
 	case .MENU:
-		mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
 		button_bounds := AABB {
 			-MENU_BUTTON_WIDTH * 0.5,
 			-MENU_BUTTON_HEIGHT * 0.5,
@@ -437,6 +439,11 @@ sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 			}
 		}
 	case .PLAYING:
+		if key_just_pressed(app_state.input_state, .ESCAPE) {
+			gs.state_kind = .PAUSED
+			return
+		}
+
 		for &en in gs.entities {
 			en.frame = {}
 		}
@@ -541,6 +548,33 @@ sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 		}
 
 		process_wave(gs, delta_t)
+	case .PAUSED:
+		if key_just_pressed(app_state.input_state, .ESCAPE) {
+			gs.state_kind = .PLAYING
+			return
+		}
+
+		resume_button := AABB {
+			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			PAUSE_MENU_SPACING,
+			PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			PAUSE_MENU_BUTTON_HEIGHT + PAUSE_MENU_SPACING,
+		}
+
+		menu_button := AABB {
+			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			-PAUSE_MENU_BUTTON_HEIGHT - PAUSE_MENU_SPACING,
+			PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			-PAUSE_MENU_SPACING,
+		}
+
+		if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+			if aabb_contains(resume_button, mouse_pos) {
+				gs.state_kind = .PLAYING
+			} else if aabb_contains(menu_button, mouse_pos) {
+				gs.state_kind = .MENU
+			}
+		}
 	}
 }
 
@@ -726,11 +760,12 @@ draw_game_state :: proc(
 	// :camera
 	draw_frame.camera_xform = Matrix4(1)
 
+	player: Entity
+
 	#partial switch gs.state_kind {
 	case .MENU:
 		draw_menu(gs)
 	case .PLAYING:
-		player: Entity
 		player_handle: Entity_Handle
 		for en in gs.entities {
 			if en.kind == .player && en.user_id == app_state.user_id {
@@ -778,6 +813,20 @@ draw_game_state :: proc(
 				break
 			}
 		}
+	case .PAUSED:
+		draw_tiles(gs, player)
+		for en in gs.entities {
+			#partial switch en.kind {
+			case .player:
+				draw_player(en)
+			case .enemy:
+				draw_enemy(en)
+			case .player_projectile:
+				draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+			}
+		}
+
+		draw_pause_menu(gs)
 	}
 }
 
@@ -913,6 +962,9 @@ almost_equals :: proc(a: f32, b: f32, epsilon: f32 = 0.001) -> bool {
 
 MENU_BUTTON_WIDTH :: 200.0
 MENU_BUTTON_HEIGHT :: 50.0
+PAUSE_MENU_BUTTON_WIDTH :: 200.0
+PAUSE_MENU_BUTTON_HEIGHT :: 50.0
+PAUSE_MENU_SPACING :: 20.0
 
 draw_menu :: proc(gs: Game_State) {
 	button_pos := v2{-MENU_BUTTON_WIDTH * 0.5, 0}
@@ -925,4 +977,28 @@ draw_menu :: proc(gs: Game_State) {
 
 	text_pos := button_pos + v2{MENU_BUTTON_WIDTH * 0.2, MENU_BUTTON_HEIGHT * 0.3}
 	draw_text(text_pos, "Play", scale = 2.0)
+}
+
+draw_pause_menu :: proc(gs: Game_State) {
+	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+
+	resume_pos := v2{-PAUSE_MENU_BUTTON_WIDTH * 0.5, PAUSE_MENU_SPACING}
+	draw_rect_aabb(
+		resume_pos,
+		v2{PAUSE_MENU_BUTTON_WIDTH, PAUSE_MENU_BUTTON_HEIGHT},
+		col = v4{0.2, 0.3, 0.8, 1.0},
+	)
+
+	resume_text_pos :=
+		resume_pos + v2{PAUSE_MENU_BUTTON_WIDTH * 0.2, PAUSE_MENU_BUTTON_HEIGHT * 0.3}
+	draw_text(resume_text_pos, "Resume", scale = 2.0)
+
+	menu_pos := v2{-PAUSE_MENU_BUTTON_WIDTH * 0.5, -PAUSE_MENU_BUTTON_HEIGHT - PAUSE_MENU_SPACING}
+	draw_rect_aabb(
+		menu_pos,
+		v2{PAUSE_MENU_BUTTON_WIDTH, PAUSE_MENU_BUTTON_HEIGHT},
+		col = v4{0.2, 0.3, 0.8, 1.0},
+	)
+	menu_text_pos := menu_pos + v2{PAUSE_MENU_BUTTON_WIDTH * 0.2, PAUSE_MENU_BUTTON_HEIGHT * 0.3}
+	draw_text(menu_text_pos, "Main Menu", scale = 2.0)
 }
