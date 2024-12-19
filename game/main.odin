@@ -19,8 +19,6 @@ import stbi "vendor:stb/image"
 import stbrp "vendor:stb/rect_pack"
 import stbtt "vendor:stb/truetype"
 
-UserID :: u64
-
 window_w :: 1280
 window_h :: 720
 
@@ -39,7 +37,7 @@ main :: proc() {
 			event_cb = event,
 			width = window_w,
 			height = window_h,
-			window_title = "1WeekGame",
+			window_title = "WaveBreakers",
 			icon = {sokol_default = true},
 			logger = {func = slog.func},
 		},
@@ -107,7 +105,6 @@ get_tiles_in_box_radius :: proc(world_pos: Vector2, box_radius: Vector2i) -> []T
 
 // :tile load
 load_map_into_tiles :: proc(tiles: []Tile) {
-
 	png_data, succ := os.read_entire_file("A:/Desarrollos/1WeekGame/res/map.png")
 	assert(succ, "map.png not found")
 
@@ -178,7 +175,7 @@ world_pos_to_tile_pos :: proc(world_pos: Vector2) -> Tile_Pos {
 }
 
 // :tile
-draw_tiles :: proc(gs: Game_State, player: Entity) {
+draw_tiles :: proc(gs: ^Game_State, player: Entity) {
 	visible_margin := 2
 	min_x := max(0, 0)
 	max_x := min(WORLD_W, WORLD_W)
@@ -226,6 +223,7 @@ Game_State_Kind :: enum {
 	MENU,
 	PLAYING,
 	PAUSED,
+	SHOP,
 }
 
 Game_State :: struct {
@@ -244,19 +242,13 @@ Game_State :: struct {
 	currency_points:      int, // Currency
 }
 
+// Messages are now single player events
 Message_Kind :: enum {
-	create_player,
 	shoot,
 }
 
 Message :: struct {
-	kind:          Message_Kind,
-	from_entity:   Entity_Handle,
-	using variant: struct #raw_union {
-		create_player: struct {
-			user_id: UserID,
-		},
-	},
+	kind: Message_Kind,
 }
 
 add_message :: proc(messages: ^[dynamic]Message, new_message: Message) -> ^Message {
@@ -305,8 +297,8 @@ Entity :: struct {
 	kind:         Entity_Kind,
 	flags:        bit_set[Entity_Flags],
 	pos:          Vector2,
+	prev_pos:     Vector2,
 	direction:    Vector2,
-	user_id:      UserID,
 	health:       int,
 	max_health:   int,
 	damage:       int,
@@ -320,10 +312,31 @@ Entity :: struct {
 	frame:        struct {},
 	level:        int, // Current level
 	experience:   int, // Current currency
+	upgrade_levels: struct{
+	   attack_speed: int,
+	   accuracy: int,
+	   damage: int,
+	   armor: int,
+	}
 }
 
 Entity_Handle :: u64
 
+Upgrade_Kind :: enum {
+    attack_speed,
+    accuracy,
+    damage,
+    armor,
+}
+
+UPGRADE_BASE_COST :: 5
+UPGRADE_COST_INCREMENT :: 3
+MAX_UPGRADE_LEVEL :: 10
+
+ATTACK_SPEED_BONUS_PER_LEVEL :: 0.1
+ACCURACY_BONUS_PER_LEVEL :: 0.1
+DAMAGE_BONUS_PER_LEVEL :: 0.15
+ARMOR_BONUS_PER_LEVEL :: 0.1
 
 handle_to_entity :: proc(gs: ^Game_State, handle: Entity_Handle) -> ^Entity {
 	for &en in gs.entities {
@@ -360,6 +373,8 @@ entity_create :: proc(gs: ^Game_State) -> ^Entity {
 }
 
 entity_destroy :: proc(gs: ^Game_State, entity: ^Entity) {
+	if entity == nil do return
+	entity.flags = {}
 	mem.set(entity, 0, size_of(Entity))
 }
 
@@ -374,6 +389,8 @@ setup_player :: proc(e: ^Entity) {
 	e.damage = 10
 	e.attack_speed = 1.0
 	e.attack_timer = 0.0
+
+	e.upgrade_levels = {}
 }
 
 setup_enemy :: proc(e: ^Entity, pos: Vector2) {
@@ -381,6 +398,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2) {
 	e.flags |= {.allocated}
 
 	e.pos = pos
+	e.prev_pos = pos
 	e.health = 10
 	e.max_health = 100
 	e.damage = 5
@@ -419,93 +437,110 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 
 FOV_RANGE :: 1000.0 // Range in which the player can detect enemies
 
-sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
-	defer gs.tick_index += 1
+handle_input :: proc(gs: ^Game_State){
+        mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
 
-	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+    #partial switch gs.state_kind {
+    case .MENU:
+        button_bounds := AABB {
+            -MENU_BUTTON_WIDTH * 0.5,
+            -MENU_BUTTON_HEIGHT * 0.5,
+            MENU_BUTTON_WIDTH * 0.5,
+            MENU_BUTTON_HEIGHT * 0.5,
+        }
 
-	#partial switch gs.state_kind {
-	case .MENU:
-		button_bounds := AABB {
-			-MENU_BUTTON_WIDTH * 0.5,
-			-MENU_BUTTON_HEIGHT * 0.5,
-			MENU_BUTTON_WIDTH * 0.5,
-			MENU_BUTTON_HEIGHT * 0.5,
+        if aabb_contains(button_bounds, mouse_pos) {
+            if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+                for &en in gs.entities {
+                    if .allocated in en.flags {
+                        entity_destroy(gs, &en)
+                    }
+                }
+
+                gs.wave_number = 0
+                gs.enemies_to_spawn = 0
+                gs.available_points = 0
+                gs.currency_points = 0
+                gs.player_level = 0
+                gs.player_experience = 0
+
+                e := entity_create(gs)
+                if e != nil {
+                    setup_player(e)
+                }
+
+                gs.state_kind = .PLAYING
+            }
+        }
+    case .PLAYING:
+        if key_just_pressed(app_state.input_state, .ESCAPE) {
+            gs.state_kind = .PAUSED
+        }
+    case .PAUSED:
+        if key_just_pressed(app_state.input_state, .ESCAPE) {
+            gs.state_kind = .PLAYING
+        }
+
+		resume_button := AABB {
+			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			PAUSE_MENU_SPACING,
+			PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			PAUSE_MENU_BUTTON_HEIGHT + PAUSE_MENU_SPACING,
 		}
 
-		if aabb_contains(button_bounds, mouse_pos) {
-			if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+		menu_button := AABB {
+			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			-PAUSE_MENU_BUTTON_HEIGHT - PAUSE_MENU_SPACING,
+			PAUSE_MENU_BUTTON_WIDTH * 0.5,
+			-PAUSE_MENU_SPACING,
+		}
+
+		if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+			if aabb_contains(resume_button, mouse_pos) {
 				gs.state_kind = .PLAYING
+			} else if aabb_contains(menu_button, mouse_pos) {
+				gs.state_kind = .MENU
 			}
 		}
-	case .PLAYING:
-		if key_just_pressed(app_state.input_state, .ESCAPE) {
-			gs.state_kind = .PAUSED
-			return
-		}
+    }
+}
 
-		for &en in gs.entities {
-			en.frame = {}
-		}
+update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
+    defer gs.tick_index += 1
 
-		for msg in messages {
-			#partial switch msg.kind {
-			case .create_player:
-				{
+    #partial switch gs.state_kind {
+    case .PLAYING:
+        for &en in gs.entities {
+            en.frame = {}
+        }
 
-					user_id := msg.create_player.user_id
-					assert(user_id != 0, "invalid user id")
+        for &en in gs.entities {
+            if en.kind == .player {
+                en.attack_timer -= f32(delta_t)
 
-					existing_user := false
-					for en in gs.entities {
-						if en.user_id == user_id {
-							existing_user = true
-							break
-						}
-					}
+                targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
 
-					if !existing_user {
-						e := entity_create(gs)
-						setup_player(e)
-						e.user_id = user_id
-					}
+                if DEBUG.player_fov {
+                    debug_draw_fov_range(en.pos, FOV_RANGE)
+                }
 
-				}
-			}
-		}
-
-		for &en in gs.entities {
-			// :player
-			if en.kind == .player {
-				en.attack_timer -= f32(delta_t)
-
-				targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
-
-				if DEBUG.player_fov {
-					debug_draw_fov_range(en.pos, FOV_RANGE)
-				}
-
-				if en.attack_timer <= 0 && len(targets) > 0 {
-					// Here we have a target in range and we can actually shoot.
-					closest_enemy := targets[0].entity
-
-					projectile := entity_create(gs)
-
-					if projectile != nil {
-						setup_projectile(projectile, en.pos, closest_enemy.pos)
-					}
-
-					en.attack_timer = 1.0 / en.attack_speed
-				}
-			}
-			//:enemy
-			if en.kind == .enemy {
-				process_enemy_behaviour(&en, gs, f32(delta_t))
-			}
-			// :player_projectile
-			if en.kind == .player_projectile {
+                if en.attack_timer <= 0 && len(targets) > 0 {
+                    closest_enemy := targets[0].entity
+                    projectile := entity_create(gs)
+                    if projectile != nil {
+                        setup_projectile(projectile, en.pos, closest_enemy.pos)
+                    }
+                    en.attack_timer = 1.0 / en.attack_speed
+                }
+            }
+            if en.kind == .enemy {
+                process_enemy_behaviour(&en, gs, f32(delta_t))
+            }
+            if en.kind == .player_projectile {
 				SUB_STEPS :: 4
 				dt := f32(delta_t) / f32(SUB_STEPS)
+
+				en.prev_pos = en.pos
 
 				for step in 0 ..< SUB_STEPS {
 					if !(.allocated in en.flags) do break
@@ -540,42 +575,15 @@ sim_game_state :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 						}
 					}
 				}
-			}
-		}
+            }
+        }
 
-		if gs.wave_number == 0 {
-			init_wave(gs, 1)
-		}
+        if gs.wave_number == 0 {
+            init_wave(gs, 1)
+        }
 
-		process_wave(gs, delta_t)
-	case .PAUSED:
-		if key_just_pressed(app_state.input_state, .ESCAPE) {
-			gs.state_kind = .PLAYING
-			return
-		}
-
-		resume_button := AABB {
-			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
-			PAUSE_MENU_SPACING,
-			PAUSE_MENU_BUTTON_WIDTH * 0.5,
-			PAUSE_MENU_BUTTON_HEIGHT + PAUSE_MENU_SPACING,
-		}
-
-		menu_button := AABB {
-			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
-			-PAUSE_MENU_BUTTON_HEIGHT - PAUSE_MENU_SPACING,
-			PAUSE_MENU_BUTTON_WIDTH * 0.5,
-			-PAUSE_MENU_SPACING,
-		}
-
-		if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
-			if aabb_contains(resume_button, mouse_pos) {
-				gs.state_kind = .PLAYING
-			} else if aabb_contains(menu_button, mouse_pos) {
-				gs.state_kind = .MENU
-			}
-		}
-	}
+        process_wave(gs, delta_t)
+    }
 }
 
 //
@@ -613,6 +621,7 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	#partial switch en.state {
 	case .moving:
 		if distance > 1.0 {
+		    en.prev_pos = en.pos
 			direction = linalg.normalize(direction)
 			en.pos += direction * en.speed * delta_t
 		}
@@ -662,6 +671,45 @@ PROJECTILE_SIZE :: v2{32, 32}
 PROJECTILE_GRAVITY :: 980.0
 PROJECTILE_INITIAL_Y_VELOCITY :: 400.0
 
+calculate_enemy_velocity :: proc(enemy: ^Entity) -> Vector2{
+    if enemy.state != .moving do return Vector2{}
+
+    // While moving, enemy moves directly to the player.
+    direction := linalg.normalize(enemy.target.pos - enemy.pos)
+    return direction * enemy.speed
+}
+
+calculate_intercept_point :: proc(shooter_pos: Vector2, target: ^Entity) -> (hit_pos: Vector2, flight_time: f32){
+    target_velocity := calculate_enemy_velocity(target)
+    to_target := target.pos - shooter_pos
+
+
+    // Since we have a parabole effect, gonna use quadratic equation to solve intersection point
+    effective_speed := f32(600.0)
+
+    a := linalg.length2(target_velocity) - effective_speed * effective_speed
+    b := 2 * linalg.dot(to_target, target_velocity)
+    c := linalg.length2(to_target)
+
+    discriminant := b * b - 4 * a * c
+
+    // there is a possibility that there is not solution (enemy too fast or whatever) so aims at current position
+    if discriminant < 0 {
+        return target.pos, linalg.length(to_target)
+    }
+
+    t1 := (-b - math.sqrt(discriminant)) / (2 * a)
+    t2 := (-b + math.sqrt(discriminant)) / (2 * a)
+    time := min(t1, t2) if t1 > 0 else t2
+
+    if time < 0{
+        return target.pos, linalg.length(to_target)
+    }
+
+    predicted_pos := target.pos + target_velocity * time
+    return predicted_pos, time
+}
+
 setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
 	e.kind = .player_projectile
 	e.flags |= {.allocated}
@@ -669,24 +717,45 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
 	player_height := 32.0 * 5.0
 	spawn_position := pos + v2{0, auto_cast player_height * 0.5}
 	e.pos = spawn_position
+	e.prev_pos = spawn_position
 
-	to_target := target_pos - spawn_position
-	distance := linalg.length(to_target)
-	direction := linalg.normalize(to_target)
+    // Get the current accuracy level
+    player := find_player(&app_state.game)
+    accuracy_level := player.upgrade_levels.accuracy if player != nil else 0
 
-	flight_time := max(distance / 600.0, 0.5)
+    to_target := target_pos - spawn_position
+    distance := linalg.length(to_target)
 
-	gravity := PROJECTILE_GRAVITY
-	dx := distance
-	dy := target_pos.y - spawn_position.y
+    // These are hardcoded values, at level 0 Max Spread -> 20° at max range.
+    // At max level (10), max spred is reduced by 90%, so it becomes almost perfectly accurate.
 
-	vx := dx / flight_time
-	vy := (dy + 0.5 * auto_cast gravity * flight_time * flight_time) / flight_time
+    base_spread := 0.35 // 20° in radians
+    max_range := FOV_RANGE
+    distance_factor := auto_cast distance / auto_cast max_range
+    accuracy_reduction := f32(accuracy_level) * ACCURACY_BONUS_PER_LEVEL
+    actual_spread := base_spread * auto_cast distance_factor * auto_cast (1.0 - accuracy_reduction)
 
-	e.direction = {direction.x * vx, vy}
+    angle_offset := rand.float32_range(auto_cast -actual_spread, auto_cast actual_spread)
+    cos_theta := math.cos(angle_offset)
+    sin_theta := math.sin(angle_offset)
 
-	//e.speed = PROJECTILE_SPEED
-	e.damage = 10
+    dx := target_pos.x - spawn_position.x
+    dy := target_pos.y - spawn_position.y
+    adjusted_x := dx * cos_theta - dy * sin_theta
+    adjusted_y := dx * sin_theta + dy * cos_theta
+    adjusted_target := spawn_position + Vector2{adjusted_x, adjusted_y}
+
+    flight_time := max(distance / 600.0, 0.5)
+    gravity := PROJECTILE_GRAVITY
+    dx = linalg.length(adjusted_target - spawn_position)
+    dy = adjusted_target.y - spawn_position.y
+
+    vx := dx / flight_time
+    vy := (dy + 0.5 * auto_cast gravity * flight_time * flight_time) / flight_time
+
+    direction := linalg.normalize(adjusted_target - spawn_position)
+    e.direction = {direction.x * vx, vy}
+    e.damage = 10
 }
 
 when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
@@ -709,7 +778,7 @@ init_wave :: proc(gs: ^Game_State, wave_number: int) {
 	gs.wave_number = wave_number
 	gs.wave_spawn_timer = WAVE_SPAWN_RATE
 	gs.wave_spawn_rate = WAVE_SPAWN_RATE
-	gs.enemies_to_spawn = wave_number * 3 // This is a placeholder, later will make it so it scales with the wave number or some calculation.
+	gs.enemies_to_spawn = wave_number * 5 // This is a placeholder, later will make it so it scales with the wave number or some calculation.
 }
 
 process_wave :: proc(gs: ^Game_State, delta_t: f64) {
@@ -735,11 +804,12 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 // :draw :user
 
 draw_game_state :: proc(
-	gs: Game_State,
+	gs: ^Game_State,
 	input_state: Input_State,
 	messages_out: ^[dynamic]Message,
 ) {
 	using linalg
+	player: Entity
 
 	map_width := f32(WORLD_W * TILE_LENGTH) // 2048
 	map_height := f32(WORLD_H * TILE_LENGTH) // 1280
@@ -760,26 +830,17 @@ draw_game_state :: proc(
 	// :camera
 	draw_frame.camera_xform = Matrix4(1)
 
-	player: Entity
+    alpha := f32(accumulator) / f32(sims_per_second)
 
 	#partial switch gs.state_kind {
 	case .MENU:
 		draw_menu(gs)
 	case .PLAYING:
-		player_handle: Entity_Handle
 		for en in gs.entities {
-			if en.kind == .player && en.user_id == app_state.user_id {
+			if en.kind == .player {
 				player = en
-				player_handle = entity_to_handle(gs, player)
 				break
 			}
-		}
-
-		if player_handle == 0 {
-			append(
-				messages_out,
-				(Message){kind = .create_player, create_player = {user_id = app_state.user_id}},
-			)
 		}
 
 		draw_tiles(gs, player)
@@ -788,15 +849,19 @@ draw_game_state :: proc(
 			#partial switch en.kind {
 			case .player:
 				draw_player(en)
-			case .enemy:
-				draw_enemy(en)
-			case .player_projectile:
-				draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+            case .enemy, .player_projectile:
+                render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
+
+                if en.kind == .enemy{
+                    draw_enemy_at_pos(en, render_pos)
+                }else{
+                    draw_rect_aabb(render_pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+                }
 			}
 		}
 
 		for en in gs.entities {
-			if en.kind == .player && en.user_id == app_state.user_id {
+			if en.kind == .player {
 				ui_base_pos := v2{-1000, 600}
 
 				level_text := fmt.tprintf("Current Level: %d", en.level)
@@ -819,35 +884,39 @@ draw_game_state :: proc(
 			#partial switch en.kind {
 			case .player:
 				draw_player(en)
-			case .enemy:
-				draw_enemy(en)
-			case .player_projectile:
-				draw_rect_aabb(en.pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+            case .enemy, .player_projectile:
+                render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
+
+                if en.kind == .enemy{
+                    draw_enemy_at_pos(en, render_pos)
+                }else{
+                    draw_rect_aabb(render_pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
+                }
 			}
 		}
 
 		draw_pause_menu(gs)
+	case .SHOP:
+	   draw_shop_menu(gs)
 	}
 }
 
 draw_player :: proc(en: Entity) {
-
 	img := Image_Id.player
 
 	xform := Matrix4(1)
 	xform *= xform_scale(v2{5, 5})
 
 	draw_sprite(en.pos, img, pivot = .bottom_center, xform = xform)
-
 }
 
-draw_enemy :: proc(en: Entity) {
+draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
 	img := Image_Id.enemy
 
 	xform := Matrix4(1)
 	xform *= xform_scale(v2{5, 5})
 
-	draw_sprite(en.pos, img, pivot = .bottom_center, xform = xform)
+	draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }
 
 screen_to_world_pos :: proc(screen_pos: Vector2) -> Vector2 {
@@ -960,45 +1029,211 @@ almost_equals :: proc(a: f32, b: f32, epsilon: f32 = 0.001) -> bool {
 //
 // : Menus
 
+Button :: struct {
+	bounds:     AABB,
+	text:       string,
+	text_scale: f32,
+	color:      Vector4,
+}
+
 MENU_BUTTON_WIDTH :: 200.0
 MENU_BUTTON_HEIGHT :: 50.0
 PAUSE_MENU_BUTTON_WIDTH :: 200.0
 PAUSE_MENU_BUTTON_HEIGHT :: 50.0
 PAUSE_MENU_SPACING :: 20.0
 
-draw_menu :: proc(gs: Game_State) {
-	button_pos := v2{-MENU_BUTTON_WIDTH * 0.5, 0}
+draw_menu :: proc(gs: ^Game_State) {
+	play_button := make_centered_button(0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
 
-	draw_rect_aabb(
-		button_pos,
-		v2{MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT},
-		col = v4{0.2, 0.3, 0.8, 1.0},
-	)
+	if draw_button(play_button) {
+		e := entity_create(gs)
+		if e != nil {
+			setup_player(e)
+		}
 
-	text_pos := button_pos + v2{MENU_BUTTON_WIDTH * 0.2, MENU_BUTTON_HEIGHT * 0.3}
-	draw_text(text_pos, "Play", scale = 2.0)
+		gs.state_kind = .PLAYING
+	}
 }
 
-draw_pause_menu :: proc(gs: Game_State) {
+draw_pause_menu :: proc(gs: ^Game_State) {
 	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-	resume_pos := v2{-PAUSE_MENU_BUTTON_WIDTH * 0.5, PAUSE_MENU_SPACING}
+    resume_button := make_centered_button(
+        PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT,
+        PAUSE_MENU_BUTTON_WIDTH,
+        PAUSE_MENU_BUTTON_HEIGHT,
+        "Resume",
+    )
+
+
+    shop_button := make_centered_button(
+        0,
+        PAUSE_MENU_BUTTON_WIDTH,
+        PAUSE_MENU_BUTTON_HEIGHT,
+        "Shop",
+    )
+
+    menu_button := make_centered_button(
+        -(PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT),
+        PAUSE_MENU_BUTTON_WIDTH,
+        PAUSE_MENU_BUTTON_HEIGHT,
+        "Main Menu",
+    )
+
+    if draw_button(resume_button){
+        gs.state_kind = .PLAYING
+    }
+
+    if draw_button(menu_button){
+        gs.state_kind = .MENU
+    }
+
+    if draw_button(shop_button){
+        gs.state_kind = .SHOP
+    }
+}
+
+draw_shop_menu :: proc(gs: ^Game_State){
+    draw_rect_aabb(v2{-2000, -2000}, v2{4000,4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+
+    title_pos := v2{-200, 300}
+    draw_text(title_pos, "Statistics", scale = 3.0)
+
+    currency_pos := v2{-200, 250}
+    currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+    draw_text(currency_pos, currency_text, scale = 2.0)
+
+    y_start := 150.0
+    spacing := 80.0
+
+    for upgrade, i in Upgrade_Kind{
+        player := find_player(gs)
+        if player == nil do return
+
+        level := get_upgrade_level(player, upgrade)
+        cost := calculate_upgrade_cost(level)
+
+        button_text := fmt.tprintf("%v (Level %d) - Cost: %d", upgrade, level, cost)
+        button := make_centered_button(
+            auto_cast y_start - f32(i) * auto_cast spacing,
+            PAUSE_MENU_BUTTON_WIDTH * 1.5,
+            PAUSE_MENU_BUTTON_HEIGHT,
+            button_text,
+        )
+
+        if draw_button(button){
+            try_purchase_upgrade(gs, player, upgrade)
+        }
+    }
+
+    back_button := make_centered_button(
+        -300,
+        PAUSE_MENU_BUTTON_WIDTH,
+        PAUSE_MENU_BUTTON_HEIGHT,
+        "Back",
+    )
+
+    if draw_button(back_button){
+        gs.state_kind = .PLAYING
+    }
+}
+
+draw_button :: proc(button: Button) -> bool {
+	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+	is_hovered := aabb_contains(button.bounds, mouse_pos)
+
+	color := button.color
+	if is_hovered {
+		color.xyz *= 1.2
+	}
+
 	draw_rect_aabb(
-		resume_pos,
-		v2{PAUSE_MENU_BUTTON_WIDTH, PAUSE_MENU_BUTTON_HEIGHT},
-		col = v4{0.2, 0.3, 0.8, 1.0},
+		v2{button.bounds.x, button.bounds.y},
+		v2{button.bounds.z - button.bounds.x, button.bounds.w - button.bounds.y},
+		col = color,
 	)
 
-	resume_text_pos :=
-		resume_pos + v2{PAUSE_MENU_BUTTON_WIDTH * 0.2, PAUSE_MENU_BUTTON_HEIGHT * 0.3}
-	draw_text(resume_text_pos, "Resume", scale = 2.0)
+	text_width := f32(len(button.text)) * 8 * button.text_scale
+	text_height := 16 * button.text_scale
 
-	menu_pos := v2{-PAUSE_MENU_BUTTON_WIDTH * 0.5, -PAUSE_MENU_BUTTON_HEIGHT - PAUSE_MENU_SPACING}
-	draw_rect_aabb(
-		menu_pos,
-		v2{PAUSE_MENU_BUTTON_WIDTH, PAUSE_MENU_BUTTON_HEIGHT},
-		col = v4{0.2, 0.3, 0.8, 1.0},
-	)
-	menu_text_pos := menu_pos + v2{PAUSE_MENU_BUTTON_WIDTH * 0.2, PAUSE_MENU_BUTTON_HEIGHT * 0.3}
-	draw_text(menu_text_pos, "Main Menu", scale = 2.0)
+	text_pos := v2 {
+		button.bounds.x + (button.bounds.z - button.bounds.x - text_width) * 0.5,
+		button.bounds.y + (button.bounds.w - button.bounds.y - text_height) * 0.5,
+	}
+
+	draw_text(text_pos, button.text, scale = auto_cast button.text_scale)
+
+	return is_hovered && key_just_pressed(app_state.input_state, .LEFT_MOUSE)
+}
+
+make_centered_button :: proc(
+	y_pos: f32,
+	width: f32,
+	height: f32,
+	text: string,
+	color := v4{0.2, 0.3, 0.8, 1.0},
+) -> Button {
+	return Button {
+		bounds = {-width * 0.5, y_pos - height * 0.5, width * 0.5, y_pos + height * 0.5},
+		text = text,
+		text_scale = 2.0,
+		color = color,
+	}
+}
+
+//
+// :upgrades
+
+find_player :: proc(gs: ^Game_State) -> ^Entity{
+    for &en in gs.entities {
+        if en.kind == .player {
+            return &en
+        }
+    }
+
+    return nil
+}
+
+get_upgrade_level :: proc(player: ^Entity, upgrade: Upgrade_Kind) -> int{
+    switch upgrade {
+        case .attack_speed:
+            return player.upgrade_levels.attack_speed
+        case .accuracy:
+            return player.upgrade_levels.accuracy
+        case .damage:
+            return player.upgrade_levels.damage
+        case .armor:
+            return player.upgrade_levels.armor
+    }
+    return 0
+}
+
+calculate_upgrade_cost :: proc(current_level: int) -> int {
+    return UPGRADE_BASE_COST + (current_level * UPGRADE_COST_INCREMENT)
+}
+
+try_purchase_upgrade :: proc(gs: ^Game_State, player: ^Entity, upgrade: Upgrade_Kind){
+    level := get_upgrade_level(player, upgrade)
+    if level >= MAX_UPGRADE_LEVEL do return
+
+    cost := calculate_upgrade_cost(level)
+    if gs.currency_points < cost do return
+
+    gs.currency_points -= cost
+
+    switch upgrade {
+    case .attack_speed:
+        player.upgrade_levels.attack_speed += 1
+        player.attack_speed = 1.0 + (f32(player.upgrade_levels.attack_speed) * ATTACK_SPEED_BONUS_PER_LEVEL)
+    case .accuracy:
+        player.upgrade_levels.accuracy += 1
+        //TODO Apply actual accuracy effect
+    case .damage:
+        player.upgrade_levels.damage += 1
+        player.damage = 10 + int(f32(player.damage) * DAMAGE_BONUS_PER_LEVEL * f32(player.upgrade_levels.damage))
+    case .armor:
+        player.upgrade_levels.armor += 1
+        player.max_health = 100 + int(f32(100) * ARMOR_BONUS_PER_LEVEL * f32(player.upgrade_levels.armor))
+        player.health = player.max_health
+    }
 }

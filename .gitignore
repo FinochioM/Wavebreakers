@@ -144,3 +144,11 @@ font.png
 /sokol/time/sokol_time_windows_x64_gl_release.lib
 /sokol/time/time.odin
 /TODO.txt
+/game/shaders/shader.glsl_hlsl5_fs.glsl
+/game/shaders/shader.glsl_hlsl5_fs.spv
+/game/shaders/shader.glsl_hlsl5_vs.glsl
+/game/shaders/shader.glsl_hlsl5_vs.spv
+/game/shaders/shader.glsl_wgsl_fs.glsl
+/game/shaders/shader.glsl_wgsl_fs.spv
+/game/shaders/shader.glsl_wgsl_vs.glsl
+/game/shaders/shader.glsl_wgsl_vs.spv

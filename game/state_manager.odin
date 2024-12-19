@@ -9,6 +9,5 @@ app_state: struct {
 	input_state:   Input_State,
 	game:          Game_State,
 	message_queue: [dynamic]Message,
-	user_id:       UserID,
 	camera_pos:    Vector2,
 }

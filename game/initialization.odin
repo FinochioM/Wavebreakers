@@ -24,21 +24,16 @@ initialize :: proc "c" () {
 		},
 	)
 
-	// :init
 	init_images()
 	init_fonts()
 	first_time_init_game_state(&app_state.game)
 
 	rand.reset(auto_cast runtime.read_cycle_counter())
-	app_state.user_id = rand.uint64()
-	//loggie(app_state.user_id)
 
-	// make the vertex buffer
 	app_state.bind.vertex_buffers[0] = sg.make_buffer(
 		{usage = .DYNAMIC, size = size_of(Quad) * len(draw_frame.quads)},
 	)
 
-	// make & fill the index buffer
 	index_buffer_count :: MAX_QUADS * 6
 	indices: [index_buffer_count]u16
 	i := 0
@@ -55,10 +50,8 @@ initialize :: proc "c" () {
 		{type = .INDEXBUFFER, data = {ptr = &indices, size = size_of(indices)}},
 	)
 
-	// image stuff
 	app_state.bind.samplers[SMP_default_sampler] = sg.make_sampler({})
 
-	// setup pipeline
 	pipeline_desc: sg.Pipeline_Desc = {
 		shader = sg.make_shader(quad_shader_desc(sg.query_backend())),
 		index_type = .UINT16,
@@ -86,7 +79,6 @@ initialize :: proc "c" () {
 	}
 	app_state.pip = sg.make_pipeline(pipeline_desc)
 
-	// default pass action
 	app_state.pass_action = {
 		colors = {0 = {load_action = .CLEAR, clear_value = {0, 0, 0, 1}}},
 	}
@@ -100,31 +92,22 @@ frame_init :: proc "c" () {
 	frame_time: f64 = t.duration_seconds(t.diff(last_time, current_time))
 	last_time = current_time
 	frame_time = sapp.frame_duration()
-	//loggie(frame_time)
+
+	handle_input(&app_state.game)
 
 	accumulator += frame_time
-	for (accumulator >= sims_per_second) {
-		sim_game_state(&app_state.game, sims_per_second, app_state.message_queue[:])
-		last_sim_time = seconds_since_init()
-		clear(&app_state.message_queue)
-		accumulator -= sims_per_second
-	}
+
+    for accumulator >= sims_per_second {
+        update_gameplay(&app_state.game, sims_per_second, app_state.message_queue[:])
+        last_sim_time = seconds_since_init()
+        clear(&app_state.message_queue)
+        accumulator -= sims_per_second
+    }
 
 	draw_frame.reset = {}
+	dt := seconds_since_init() - last_sim_time
+	draw_game_state(&app_state.game, app_state.input_state, &app_state.message_queue)
 
-	smooth_rendering := true
-	if smooth_rendering {
-		dt := seconds_since_init() - last_sim_time
-
-		temp_gs := new_clone(app_state.game)
-		sim_game_state(temp_gs, dt, app_state.message_queue[:])
-
-		app_state.game.state_kind = temp_gs.state_kind
-
-		draw_game_state(temp_gs^, app_state.input_state, &app_state.message_queue)
-	} else {
-		draw_game_state(app_state.game, app_state.input_state, &app_state.message_queue)
-	}
 	reset_input_state_for_next_frame(&app_state.input_state)
 
 	for i in 0 ..< draw_frame.sucffed_deferred_quad_count {
