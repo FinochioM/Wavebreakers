@@ -317,7 +317,17 @@ Entity :: struct {
 	   accuracy: int,
 	   damage: int,
 	   armor: int,
-	}
+	   life_steal: int,
+	   exp_gain: int,
+	   crit_chance: int,
+	   crit_damage: int,
+	   multishot: int,
+	   health_regen: int,
+	   dodge_chance: int,
+	   fov_range: int,
+	},
+	health_regen_timer: f32,
+	current_fov_range: f32,
 }
 
 Entity_Handle :: u64
@@ -327,6 +337,14 @@ Upgrade_Kind :: enum {
     accuracy,
     damage,
     armor,
+    life_steal,
+    exp_gain,
+    crit_chance,
+    crit_damage,
+    multishot,
+    health_regen,
+    dodge_chance,
+    fov_range,
 }
 
 UPGRADE_BASE_COST :: 5
@@ -337,6 +355,14 @@ ATTACK_SPEED_BONUS_PER_LEVEL :: 0.1
 ACCURACY_BONUS_PER_LEVEL :: 0.1
 DAMAGE_BONUS_PER_LEVEL :: 0.15
 ARMOR_BONUS_PER_LEVEL :: 0.1
+LIFE_STEAL_PER_LEVEL :: 0.05
+EXP_GAIN_BONUS_PER_LEVEL :: 0.1
+CRIT_CHANCE_PER_LEVEL :: 0.05
+CRIT_DAMAGE_PER_LEVEL :: 0.2
+MULTISHOT_CHANCE_PER_LEVEL :: 0.1
+DODGE_CHANCE_PER_LEVEL :: 0.03
+FOV_RANGE_BONUS_PER_LEVEL :: 50.0
+HEALTH_REGEN_PER_LEVEL :: 0.01
 
 handle_to_entity :: proc(gs: ^Game_State, handle: Entity_Handle) -> ^Entity {
 	for &en in gs.entities {
@@ -391,6 +417,8 @@ setup_player :: proc(e: ^Entity) {
 	e.attack_timer = 0.0
 
 	e.upgrade_levels = {}
+	e.health_regen_timer = 0
+	e.current_fov_range = FOV_RANGE
 }
 
 setup_enemy :: proc(e: ^Entity, pos: Vector2) {
@@ -516,6 +544,16 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 
         for &en in gs.entities {
             if en.kind == .player {
+                en.health_regen_timer -= f32(delta_t)
+                if en.health_regen_timer <= 0{
+                    regen_amount := int(f32(en.upgrade_levels.health_regen) * HEALTH_REGEN_PER_LEVEL)
+                    if regen_amount > 0{
+                        heal_player(&en, regen_amount)
+                    }
+
+                    en.health_regen_timer = 1.0
+                }
+
                 en.attack_timer -= f32(delta_t)
 
                 targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
@@ -556,13 +594,8 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 
 						dist := linalg.length(target.pos - en.pos)
 						if dist <= 100.0 {
-							target.health -= en.damage
+							when_projectile_hits_enemy(gs, &en, &target)
 							entity_destroy(gs, &en)
-
-							if target.health <= 0 {
-								when_enemy_dies(gs, &target)
-								entity_destroy(gs, &target)
-							}
 							break
 						}
 					}
@@ -605,6 +638,8 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
 
+	attack_timer: f32
+
 	// State transitions
 	#partial switch en.state {
 	case .moving:
@@ -626,9 +661,26 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 			en.pos += direction * en.speed * delta_t
 		}
 	case .attacking:
-		// Attack logic will go here later
-		fmt.printf("Attacking\n")
+		attack_timer -= delta_t
+		if attack_timer <= 0{
+            if en.target != nil{
+                damage := process_enemy_damage(en.target, en.damage)
+		        fmt.printf("Attacking\n")
+                en.target.health -= damage
+                //attack_timer = ENEMY_ATTACK_COOLDOWN
+                attack_timer = 2.0
+            }
+		}
 	}
+}
+
+process_enemy_damage :: proc(player: ^Entity, damage: int) -> int {
+    dodge_chance := f32(player.upgrade_levels.dodge_chance) * DODGE_CHANCE_PER_LEVEL
+    if rand.float32() < dodge_chance{
+        return 0
+    }
+
+    return damage
 }
 
 Enemy_Target :: struct {
@@ -637,6 +689,9 @@ Enemy_Target :: struct {
 }
 
 find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) -> []Enemy_Target {
+	player := find_player(gs)
+	actual_range := player != nil ? player.current_fov_range : range
+
 	targets: [dynamic]Enemy_Target
 	targets.allocator = context.temp_allocator
 
@@ -647,7 +702,7 @@ find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) 
 		direction := en.pos - source_pos
 		distance := linalg.length(direction)
 
-		if distance <= range {
+		if distance <= actual_range {
 			append(&targets, Enemy_Target{entity = &en, distance = distance})
 		}
 	}
@@ -721,6 +776,19 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
 
     // Get the current accuracy level
     player := find_player(&app_state.game)
+
+    if player != nil {
+        multishot_chance := f32(player.upgrade_levels.multishot) * MULTISHOT_CHANCE_PER_LEVEL
+        if rand.float32() < multishot_chance{
+            extra_projectile := entity_create(&app_state.game)
+            if extra_projectile != nil {
+                angle_offset := rand.float32_range(-0.2, 0.2)
+                modified_target := target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
+                setup_projectile(extra_projectile, pos, modified_target)
+            }
+        }
+    }
+
     accuracy_level := player.upgrade_levels.accuracy if player != nil else 0
 
     to_target := target_pos - spawn_position
@@ -767,6 +835,39 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
 	}
 
 	add_currency_points(gs, POINTS_PER_ENEMY)
+}
+
+when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: ^Entity) {
+    player := find_player(gs)
+    if player == nil do return
+
+    total_damage := projectile.damage
+
+    crit_chance := f32(player.upgrade_levels.crit_chance) * CRIT_CHANCE_PER_LEVEL
+    if rand.float32() < crit_chance{
+        crit_multiplier := 1.5 + (f32(player.upgrade_levels.crit_damage) * CRIT_DAMAGE_PER_LEVEL)
+        total_damage = int(f32(total_damage) * crit_multiplier)
+    }
+
+    life_steal_amount := f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
+    if life_steal_amount > 0 {
+        heal_player(player, int(life_steal_amount))
+    }
+
+    enemy.health -= total_damage
+
+    if enemy.health <= 0{
+        exp_multiplier := 1.0 + (f32(player.upgrade_levels.exp_gain) * EXP_GAIN_BONUS_PER_LEVEL)
+        exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
+        add_experience(gs, player, exp_amount)
+
+        when_enemy_dies(gs, enemy)
+        entity_destroy(gs, enemy)
+    }
+}
+
+heal_player :: proc(player: ^Entity, amount: int){
+    player.health = min(player.health + amount, player.max_health)
 }
 
 //
@@ -1195,7 +1296,7 @@ find_player :: proc(gs: ^Game_State) -> ^Entity{
 }
 
 get_upgrade_level :: proc(player: ^Entity, upgrade: Upgrade_Kind) -> int{
-    switch upgrade {
+        switch upgrade {
         case .attack_speed:
             return player.upgrade_levels.attack_speed
         case .accuracy:
@@ -1204,6 +1305,22 @@ get_upgrade_level :: proc(player: ^Entity, upgrade: Upgrade_Kind) -> int{
             return player.upgrade_levels.damage
         case .armor:
             return player.upgrade_levels.armor
+        case .life_steal:
+            return player.upgrade_levels.life_steal
+        case .exp_gain:
+            return player.upgrade_levels.exp_gain
+        case .crit_chance:
+            return player.upgrade_levels.crit_chance
+        case .crit_damage:
+            return player.upgrade_levels.crit_damage
+        case .multishot:
+            return player.upgrade_levels.multishot
+        case .health_regen:
+            return player.upgrade_levels.health_regen
+        case .dodge_chance:
+            return player.upgrade_levels.dodge_chance
+        case .fov_range:
+            return player.upgrade_levels.fov_range
     }
     return 0
 }
@@ -1227,7 +1344,6 @@ try_purchase_upgrade :: proc(gs: ^Game_State, player: ^Entity, upgrade: Upgrade_
         player.attack_speed = 1.0 + (f32(player.upgrade_levels.attack_speed) * ATTACK_SPEED_BONUS_PER_LEVEL)
     case .accuracy:
         player.upgrade_levels.accuracy += 1
-        //TODO Apply actual accuracy effect
     case .damage:
         player.upgrade_levels.damage += 1
         player.damage = 10 + int(f32(player.damage) * DAMAGE_BONUS_PER_LEVEL * f32(player.upgrade_levels.damage))
@@ -1235,5 +1351,22 @@ try_purchase_upgrade :: proc(gs: ^Game_State, player: ^Entity, upgrade: Upgrade_
         player.upgrade_levels.armor += 1
         player.max_health = 100 + int(f32(100) * ARMOR_BONUS_PER_LEVEL * f32(player.upgrade_levels.armor))
         player.health = player.max_health
+    case .life_steal:
+        player.upgrade_levels.life_steal += 1
+    case .exp_gain:
+        player.upgrade_levels.exp_gain += 1
+    case .crit_chance:
+        player.upgrade_levels.crit_chance += 1
+    case .crit_damage:
+        player.upgrade_levels.crit_damage += 1
+    case .multishot:
+        player.upgrade_levels.multishot += 1
+    case .health_regen:
+        player.upgrade_levels.health_regen += 1
+    case .dodge_chance:
+        player.upgrade_levels.dodge_chance += 1
+    case .fov_range:
+        player.upgrade_levels.fov_range += 1
+        player.current_fov_range = FOV_RANGE + (f32(player.upgrade_levels.fov_range) * FOV_RANGE_BONUS_PER_LEVEL)
     }
 }
