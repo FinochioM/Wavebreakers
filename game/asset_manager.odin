@@ -154,14 +154,13 @@ pack_images_into_atlas :: proc() {
 //
 // :FONT
 //
-draw_text :: proc(pos: Vector2, text: string, scale := 1.0) {
+draw_text :: proc(pos: Vector2, text: string, scale := 1.0, color := COLOR_WHITE) {
 	using stbtt
 
 	x: f32
 	y: f32
 
 	for char in text {
-
 		advance_x: f32
 		advance_y: f32
 		q: aligned_quad
@@ -190,7 +189,7 @@ draw_text :: proc(pos: Vector2, text: string, scale := 1.0) {
 		xform *= xform_translate(pos)
 		xform *= xform_scale(v2{auto_cast scale, auto_cast scale})
 		xform *= xform_translate(offset_to_render_at)
-		draw_rect_xform(xform, size, uv = uv, img_id = font.img_id)
+		draw_rect_xform(xform, size, col = color, uv = uv, img_id = font.img_id)
 
 		x += advance_x
 		y += -advance_y

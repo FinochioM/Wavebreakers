@@ -8,6 +8,7 @@ import "core:math/linalg"
 import "core:math/rand"
 import "core:mem"
 import "core:os"
+import "core:strings"
 import t "core:time"
 
 import sapp "../sokol/app"
@@ -212,8 +213,9 @@ draw_tiles :: proc(gs: ^Game_State, player: Entity) {
 
 first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.state_kind = .MENU
-
 	load_map_into_tiles(gs.tiles[:])
+	gs.floating_texts = make([dynamic] Floating_Text)
+    gs.floating_texts.allocator = context.allocator
 }
 
 //
@@ -240,18 +242,19 @@ Game_State :: struct {
 	enemies_to_spawn:     int,
 	available_points:     int, // Experience
 	currency_points:      int, // Currency
+	floating_texts:       [dynamic]Floating_Text,
 }
 
 // Messages are now single player events
-Message_Kind :: enum {
+Event_Kind :: enum {
 	shoot,
 }
 
-Message :: struct {
-	kind: Message_Kind,
+Event :: struct {
+	kind: Event_Kind,
 }
 
-add_message :: proc(messages: ^[dynamic]Message, new_message: Message) -> ^Message {
+add_message :: proc(messages: ^[dynamic]Event, new_message: Event) -> ^Event {
 
 	for msg in messages {
 		#partial switch msg.kind {
@@ -293,58 +296,58 @@ Entity_Kind :: enum {
 }
 
 Entity :: struct {
-	id:           Entity_Handle,
-	kind:         Entity_Kind,
-	flags:        bit_set[Entity_Flags],
-	pos:          Vector2,
-	prev_pos:     Vector2,
-	direction:    Vector2,
-	health:       int,
-	max_health:   int,
-	damage:       int,
-	attack_speed: f32,
-	attack_timer: f32,
-	speed:        f32,
-	value:        int,
-	enemy_type:   int,
-	state:        Enemy_state,
-	target:       ^Entity,
-	frame:        struct {},
-	level:        int, // Current level
-	experience:   int, // Current currency
-	upgrade_levels: struct{
-	   attack_speed: int,
-	   accuracy: int,
-	   damage: int,
-	   armor: int,
-	   life_steal: int,
-	   exp_gain: int,
-	   crit_chance: int,
-	   crit_damage: int,
-	   multishot: int,
-	   health_regen: int,
-	   dodge_chance: int,
-	   fov_range: int,
+	id:                 Entity_Handle,
+	kind:               Entity_Kind,
+	flags:              bit_set[Entity_Flags],
+	pos:                Vector2,
+	prev_pos:           Vector2,
+	direction:          Vector2,
+	health:             int,
+	max_health:         int,
+	damage:             int,
+	attack_speed:       f32,
+	attack_timer:       f32,
+	speed:              f32,
+	value:              int,
+	enemy_type:         int,
+	state:              Enemy_state,
+	target:             ^Entity,
+	frame:              struct {},
+	level:              int, // Current level
+	experience:         int, // Current currency
+	upgrade_levels:     struct {
+		attack_speed: int,
+		accuracy:     int,
+		damage:       int,
+		armor:        int,
+		life_steal:   int,
+		exp_gain:     int,
+		crit_chance:  int,
+		crit_damage:  int,
+		multishot:    int,
+		health_regen: int,
+		dodge_chance: int,
+		fov_range:    int,
 	},
 	health_regen_timer: f32,
-	current_fov_range: f32,
+	current_fov_range:  f32,
 }
 
 Entity_Handle :: u64
 
 Upgrade_Kind :: enum {
-    attack_speed,
-    accuracy,
-    damage,
-    armor,
-    life_steal,
-    exp_gain,
-    crit_chance,
-    crit_damage,
-    multishot,
-    health_regen,
-    dodge_chance,
-    fov_range,
+	attack_speed,
+	accuracy,
+	damage,
+	armor,
+	life_steal,
+	exp_gain,
+	crit_chance,
+	crit_damage,
+	multishot,
+	health_regen,
+	dodge_chance,
+	fov_range,
 }
 
 UPGRADE_BASE_COST :: 5
@@ -410,7 +413,7 @@ setup_player :: proc(e: ^Entity) {
 
 	e.pos = v2{-900, -500}
 
-	e.health = 100
+	e.health = 50
 	e.max_health = 100
 	e.damage = 10
 	e.attack_speed = 1.0
@@ -427,11 +430,12 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2) {
 
 	e.pos = pos
 	e.prev_pos = pos
-	e.health = 10
+	e.health = 30
 	e.max_health = 100
+	e.attack_timer = 0.0
 	e.damage = 5
 	e.state = .moving
-	e.speed = 100.0
+	e.speed = 200.0
 	e.value = 10
 	e.enemy_type = 1
 }
@@ -465,49 +469,55 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 
 FOV_RANGE :: 1000.0 // Range in which the player can detect enemies
 
-handle_input :: proc(gs: ^Game_State){
-        mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+handle_input :: proc(gs: ^Game_State) {
+	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
 
-    #partial switch gs.state_kind {
-    case .MENU:
-        button_bounds := AABB {
-            -MENU_BUTTON_WIDTH * 0.5,
-            -MENU_BUTTON_HEIGHT * 0.5,
-            MENU_BUTTON_WIDTH * 0.5,
-            MENU_BUTTON_HEIGHT * 0.5,
-        }
+	#partial switch gs.state_kind {
+	case .MENU:
+		button_bounds := AABB {
+			-MENU_BUTTON_WIDTH * 0.5,
+			-MENU_BUTTON_HEIGHT * 0.5,
+			MENU_BUTTON_WIDTH * 0.5,
+			MENU_BUTTON_HEIGHT * 0.5,
+		}
 
-        if aabb_contains(button_bounds, mouse_pos) {
-            if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
-                for &en in gs.entities {
-                    if .allocated in en.flags {
-                        entity_destroy(gs, &en)
-                    }
+		if aabb_contains(button_bounds, mouse_pos) {
+			if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+				for &en in gs.entities {
+					if .allocated in en.flags {
+						entity_destroy(gs, &en)
+					}
+				}
+
+				gs.wave_number = 0
+				gs.enemies_to_spawn = 0
+				gs.available_points = 0
+				gs.currency_points = 1000
+				gs.player_level = 0
+				gs.player_experience = 0
+
+                for text in &gs.floating_texts{
+                    delete(text.text)
                 }
 
-                gs.wave_number = 0
-                gs.enemies_to_spawn = 0
-                gs.available_points = 0
-                gs.currency_points = 0
-                gs.player_level = 0
-                gs.player_experience = 0
+				clear(&gs.floating_texts)
 
-                e := entity_create(gs)
-                if e != nil {
-                    setup_player(e)
-                }
+				e := entity_create(gs)
+				if e != nil {
+					setup_player(e)
+				}
 
-                gs.state_kind = .PLAYING
-            }
-        }
-    case .PLAYING:
-        if key_just_pressed(app_state.input_state, .ESCAPE) {
-            gs.state_kind = .PAUSED
-        }
-    case .PAUSED:
-        if key_just_pressed(app_state.input_state, .ESCAPE) {
-            gs.state_kind = .PLAYING
-        }
+				gs.state_kind = .PLAYING
+			}
+		}
+	case .PLAYING:
+		if key_just_pressed(app_state.input_state, .ESCAPE) {
+			gs.state_kind = .PAUSED
+		}
+	case .PAUSED:
+		if key_just_pressed(app_state.input_state, .ESCAPE) {
+			gs.state_kind = .PLAYING
+		}
 
 		resume_button := AABB {
 			-PAUSE_MENU_BUTTON_WIDTH * 0.5,
@@ -530,51 +540,67 @@ handle_input :: proc(gs: ^Game_State){
 				gs.state_kind = .MENU
 			}
 		}
-    }
+	}
 }
 
-update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
-    defer gs.tick_index += 1
+update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
+	defer gs.tick_index += 1
 
-    #partial switch gs.state_kind {
-    case .PLAYING:
-        for &en in gs.entities {
-            en.frame = {}
-        }
+	#partial switch gs.state_kind {
+	case .PLAYING:
+	    i := 0
+	    for i < len(gs.floating_texts){
+	       text := &gs.floating_texts[i]
+	       text.lifetime -= f32(delta_t)
+	       text.pos += text.velocity * f32(delta_t) * 100.0
 
-        for &en in gs.entities {
-            if en.kind == .player {
-                en.health_regen_timer -= f32(delta_t)
-                if en.health_regen_timer <= 0{
-                    regen_amount := int(f32(en.upgrade_levels.health_regen) * HEALTH_REGEN_PER_LEVEL)
-                    if regen_amount > 0{
-                        heal_player(&en, regen_amount)
-                    }
+	       if text.lifetime <= 0{
+	           delete(text.text)
+	           ordered_remove(&gs.floating_texts, i)
+	       }else{
+	           i += 1
+	       }
+	    }
 
-                    en.health_regen_timer = 1.0
-                }
+		for &en in gs.entities {
+			en.frame = {}
+		}
 
-                en.attack_timer -= f32(delta_t)
+		for &en in gs.entities {
+			if en.kind == .player {
+				en.health_regen_timer -= f32(delta_t)
+				if en.health_regen_timer <= 0 {
+					regen_amount := int(
+						f32(en.upgrade_levels.health_regen) * HEALTH_REGEN_PER_LEVEL,
+					)
+					if regen_amount > 0 {
+						heal_player(&en, regen_amount)
+					}
 
-                targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
+					en.health_regen_timer = 1.0
+				}
 
-                if DEBUG.player_fov {
-                    debug_draw_fov_range(en.pos, FOV_RANGE)
-                }
+				en.attack_timer -= f32(delta_t)
 
-                if en.attack_timer <= 0 && len(targets) > 0 {
-                    closest_enemy := targets[0].entity
-                    projectile := entity_create(gs)
-                    if projectile != nil {
-                        setup_projectile(projectile, en.pos, closest_enemy.pos)
-                    }
-                    en.attack_timer = 1.0 / en.attack_speed
-                }
-            }
-            if en.kind == .enemy {
-                process_enemy_behaviour(&en, gs, f32(delta_t))
-            }
-            if en.kind == .player_projectile {
+				targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
+
+				if DEBUG.player_fov {
+					debug_draw_fov_range(en.pos, FOV_RANGE)
+				}
+
+				if en.attack_timer <= 0 && len(targets) > 0 {
+					closest_enemy := targets[0].entity
+					projectile := entity_create(gs)
+					if projectile != nil {
+						setup_projectile(projectile, en.pos, closest_enemy.pos)
+					}
+					en.attack_timer = 1.0 / en.attack_speed
+				}
+			}
+			if en.kind == .enemy {
+				process_enemy_behaviour(&en, gs, f32(delta_t))
+			}
+			if en.kind == .player_projectile {
 				SUB_STEPS :: 4
 				dt := f32(delta_t) / f32(SUB_STEPS)
 
@@ -608,20 +634,42 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Message) {
 						}
 					}
 				}
-            }
-        }
+			}
+		}
 
-        if gs.wave_number == 0 {
-            init_wave(gs, 1)
-        }
+		if gs.wave_number == 0 {
+			init_wave(gs, 1)
+		}
 
-        process_wave(gs, delta_t)
-    }
+		process_wave(gs, delta_t)
+	}
 }
 
 //
 // :behaviour
+Floating_Text :: struct {
+    pos: Vector2,
+    text: string,
+    lifetime: f32,
+    max_lifetime: f32,
+    velocity:  Vector2,
+    color: Vector4,
+}
+
+spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color := COLOR_WHITE){
+    text_copy := strings.clone(text, context.allocator)
+    append(&gs.floating_texts, Floating_Text{
+        pos = pos + v2{0, 75},
+        text = text_copy,
+        lifetime = 1.2,
+        max_lifetime = 1.2,
+        velocity = v2{0, 5},
+        color = color,
+    })
+}
+
 ENEMY_ATTACK_RANGE :: 100.0
+ENEMY_ATTACK_COOLDOWN :: 2.0
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	// Find player entity
 	if en.target == nil {
@@ -637,8 +685,6 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
-
-	attack_timer: f32
 
 	// State transitions
 	#partial switch en.state {
@@ -656,31 +702,30 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	#partial switch en.state {
 	case .moving:
 		if distance > 1.0 {
-		    en.prev_pos = en.pos
+			en.prev_pos = en.pos
 			direction = linalg.normalize(direction)
 			en.pos += direction * en.speed * delta_t
 		}
 	case .attacking:
-		attack_timer -= delta_t
-		if attack_timer <= 0{
-            if en.target != nil{
-                damage := process_enemy_damage(en.target, en.damage)
-		        fmt.printf("Attacking\n")
-                en.target.health -= damage
-                //attack_timer = ENEMY_ATTACK_COOLDOWN
-                attack_timer = 2.0
-            }
+		en.attack_timer -= delta_t
+		if en.attack_timer <= 0 {
+			if en.target != nil {
+				damage := process_enemy_damage(en.target, en.damage)
+				fmt.printf("Attacking\n")
+				en.target.health -= damage
+				en.attack_timer = ENEMY_ATTACK_COOLDOWN
+			}
 		}
 	}
 }
 
 process_enemy_damage :: proc(player: ^Entity, damage: int) -> int {
-    dodge_chance := f32(player.upgrade_levels.dodge_chance) * DODGE_CHANCE_PER_LEVEL
-    if rand.float32() < dodge_chance{
-        return 0
-    }
+	dodge_chance := f32(player.upgrade_levels.dodge_chance) * DODGE_CHANCE_PER_LEVEL
+	if rand.float32() < dodge_chance {
+		return 0
+	}
 
-    return damage
+	return damage
 }
 
 Enemy_Target :: struct {
@@ -726,43 +771,49 @@ PROJECTILE_SIZE :: v2{32, 32}
 PROJECTILE_GRAVITY :: 980.0
 PROJECTILE_INITIAL_Y_VELOCITY :: 400.0
 
-calculate_enemy_velocity :: proc(enemy: ^Entity) -> Vector2{
-    if enemy.state != .moving do return Vector2{}
+calculate_enemy_velocity :: proc(enemy: ^Entity) -> Vector2 {
+	if enemy.state != .moving do return Vector2{}
 
-    // While moving, enemy moves directly to the player.
-    direction := linalg.normalize(enemy.target.pos - enemy.pos)
-    return direction * enemy.speed
+	// While moving, enemy moves directly to the player.
+	direction := linalg.normalize(enemy.target.pos - enemy.pos)
+	return direction * enemy.speed
 }
 
-calculate_intercept_point :: proc(shooter_pos: Vector2, target: ^Entity) -> (hit_pos: Vector2, flight_time: f32){
-    target_velocity := calculate_enemy_velocity(target)
-    to_target := target.pos - shooter_pos
+calculate_intercept_point :: proc(
+	shooter_pos: Vector2,
+	target: ^Entity,
+) -> (
+	hit_pos: Vector2,
+	flight_time: f32,
+) {
+	target_velocity := calculate_enemy_velocity(target)
+	to_target := target.pos - shooter_pos
 
 
-    // Since we have a parabole effect, gonna use quadratic equation to solve intersection point
-    effective_speed := f32(600.0)
+	// Since we have a parabole effect, gonna use quadratic equation to solve intersection point
+	effective_speed := f32(600.0)
 
-    a := linalg.length2(target_velocity) - effective_speed * effective_speed
-    b := 2 * linalg.dot(to_target, target_velocity)
-    c := linalg.length2(to_target)
+	a := linalg.length2(target_velocity) - effective_speed * effective_speed
+	b := 2 * linalg.dot(to_target, target_velocity)
+	c := linalg.length2(to_target)
 
-    discriminant := b * b - 4 * a * c
+	discriminant := b * b - 4 * a * c
 
-    // there is a possibility that there is not solution (enemy too fast or whatever) so aims at current position
-    if discriminant < 0 {
-        return target.pos, linalg.length(to_target)
-    }
+	// there is a possibility that there is not solution (enemy too fast or whatever) so aims at current position
+	if discriminant < 0 {
+		return target.pos, linalg.length(to_target)
+	}
 
-    t1 := (-b - math.sqrt(discriminant)) / (2 * a)
-    t2 := (-b + math.sqrt(discriminant)) / (2 * a)
-    time := min(t1, t2) if t1 > 0 else t2
+	t1 := (-b - math.sqrt(discriminant)) / (2 * a)
+	t2 := (-b + math.sqrt(discriminant)) / (2 * a)
+	time := min(t1, t2) if t1 > 0 else t2
 
-    if time < 0{
-        return target.pos, linalg.length(to_target)
-    }
+	if time < 0 {
+		return target.pos, linalg.length(to_target)
+	}
 
-    predicted_pos := target.pos + target_velocity * time
-    return predicted_pos, time
+	predicted_pos := target.pos + target_velocity * time
+	return predicted_pos, time
 }
 
 setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
@@ -774,56 +825,62 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
 	e.pos = spawn_position
 	e.prev_pos = spawn_position
 
-    // Get the current accuracy level
-    player := find_player(&app_state.game)
+	// Get the current accuracy level
+	player := find_player(&app_state.game)
 
-    if player != nil {
-        multishot_chance := f32(player.upgrade_levels.multishot) * MULTISHOT_CHANCE_PER_LEVEL
-        if rand.float32() < multishot_chance{
-            extra_projectile := entity_create(&app_state.game)
-            if extra_projectile != nil {
-                angle_offset := rand.float32_range(-0.2, 0.2)
-                modified_target := target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
-                setup_projectile(extra_projectile, pos, modified_target)
-            }
-        }
-    }
+	if player != nil {
+		multishot_chance := f32(player.upgrade_levels.multishot) * MULTISHOT_CHANCE_PER_LEVEL
+		if rand.float32() < multishot_chance {
+			extra_projectile := entity_create(&app_state.game)
+			if extra_projectile != nil {
+				angle_offset := rand.float32_range(-0.2, 0.2)
+				modified_target :=
+					target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
+				setup_projectile(extra_projectile, pos, modified_target)
+			}
+		}
+	}
 
-    accuracy_level := player.upgrade_levels.accuracy if player != nil else 0
+	accuracy_level := player.upgrade_levels.accuracy if player != nil else 0
 
-    to_target := target_pos - spawn_position
-    distance := linalg.length(to_target)
+	to_target := target_pos - spawn_position
+	distance := linalg.length(to_target)
 
-    // These are hardcoded values, at level 0 Max Spread -> 20° at max range.
-    // At max level (10), max spred is reduced by 90%, so it becomes almost perfectly accurate.
+	// These are hardcoded values, at level 0 Max Spread -> 20° at max range.
+	// At max level (10), max spred is reduced by 90%, so it becomes almost perfectly accurate.
 
-    base_spread := 0.35 // 20° in radians
-    max_range := FOV_RANGE
-    distance_factor := auto_cast distance / auto_cast max_range
-    accuracy_reduction := f32(accuracy_level) * ACCURACY_BONUS_PER_LEVEL
-    actual_spread := base_spread * auto_cast distance_factor * auto_cast (1.0 - accuracy_reduction)
+	base_spread := 0.35 // 20° in radians
+	max_range := FOV_RANGE
+	distance_factor := auto_cast distance / auto_cast max_range
+	accuracy_reduction := f32(accuracy_level) * ACCURACY_BONUS_PER_LEVEL
+	actual_spread := base_spread * auto_cast distance_factor * auto_cast (1.0 - accuracy_reduction)
 
-    angle_offset := rand.float32_range(auto_cast -actual_spread, auto_cast actual_spread)
-    cos_theta := math.cos(angle_offset)
-    sin_theta := math.sin(angle_offset)
+	angle_offset := rand.float32_range(auto_cast -actual_spread, auto_cast actual_spread)
+	cos_theta := math.cos(angle_offset)
+	sin_theta := math.sin(angle_offset)
 
-    dx := target_pos.x - spawn_position.x
-    dy := target_pos.y - spawn_position.y
-    adjusted_x := dx * cos_theta - dy * sin_theta
-    adjusted_y := dx * sin_theta + dy * cos_theta
-    adjusted_target := spawn_position + Vector2{adjusted_x, adjusted_y}
+	dx := target_pos.x - spawn_position.x
+	dy := target_pos.y - spawn_position.y
+	adjusted_x := dx * cos_theta - dy * sin_theta
+	adjusted_y := dx * sin_theta + dy * cos_theta
+	adjusted_target := spawn_position + Vector2{adjusted_x, adjusted_y}
 
-    flight_time := max(distance / 600.0, 0.5)
-    gravity := PROJECTILE_GRAVITY
-    dx = linalg.length(adjusted_target - spawn_position)
-    dy = adjusted_target.y - spawn_position.y
+	flight_time := max(distance / 600.0, 0.5)
+	gravity := PROJECTILE_GRAVITY
+	dx = linalg.length(adjusted_target - spawn_position)
+	dy = adjusted_target.y - spawn_position.y
 
-    vx := dx / flight_time
-    vy := (dy + 0.5 * auto_cast gravity * flight_time * flight_time) / flight_time
+	vx := dx / flight_time
+	vy := (dy + 0.5 * auto_cast gravity * flight_time * flight_time) / flight_time
 
-    direction := linalg.normalize(adjusted_target - spawn_position)
-    e.direction = {direction.x * vx, vy}
-    e.damage = 10
+	direction := linalg.normalize(adjusted_target - spawn_position)
+	e.direction = {direction.x * vx, vy}
+
+	if player != nil {
+		e.damage = player.damage
+	} else {
+		e.damage = 10
+	}
 }
 
 when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
@@ -838,36 +895,42 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
 }
 
 when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: ^Entity) {
-    player := find_player(gs)
-    if player == nil do return
+	player := find_player(gs)
+	if player == nil do return
 
-    total_damage := projectile.damage
+	total_damage := projectile.damage
+	crit_hit := false
 
-    crit_chance := f32(player.upgrade_levels.crit_chance) * CRIT_CHANCE_PER_LEVEL
-    if rand.float32() < crit_chance{
-        crit_multiplier := 1.5 + (f32(player.upgrade_levels.crit_damage) * CRIT_DAMAGE_PER_LEVEL)
-        total_damage = int(f32(total_damage) * crit_multiplier)
-    }
+	crit_chance := f32(player.upgrade_levels.crit_chance) * CRIT_CHANCE_PER_LEVEL
+	if rand.float32() < crit_chance {
+	    crit_hit = true
+		crit_multiplier := 1.5 + (f32(player.upgrade_levels.crit_damage) * CRIT_DAMAGE_PER_LEVEL)
+		total_damage = int(f32(total_damage) * crit_multiplier)
+	}
 
-    life_steal_amount := f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
-    if life_steal_amount > 0 {
-        heal_player(player, int(life_steal_amount))
-    }
+	life_steal_amount :=
+		f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
+	if life_steal_amount > 0 {
+		heal_player(player, int(life_steal_amount))
+	}
 
-    enemy.health -= total_damage
+	enemy.health -= total_damage
 
-    if enemy.health <= 0{
-        exp_multiplier := 1.0 + (f32(player.upgrade_levels.exp_gain) * EXP_GAIN_BONUS_PER_LEVEL)
-        exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
-        add_experience(gs, player, exp_amount)
+    text_color := crit_hit ? v4{1, 0, 0, 1} : COLOR_WHITE
+    spawn_floating_text(gs, enemy.pos, fmt.tprintf("%d", total_damage), text_color)
 
-        when_enemy_dies(gs, enemy)
-        entity_destroy(gs, enemy)
-    }
+	if enemy.health <= 0 {
+		exp_multiplier := 1.0 + (f32(player.upgrade_levels.exp_gain) * EXP_GAIN_BONUS_PER_LEVEL)
+		exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
+		add_experience(gs, player, exp_amount)
+
+		when_enemy_dies(gs, enemy)
+		entity_destroy(gs, enemy)
+	}
 }
 
-heal_player :: proc(player: ^Entity, amount: int){
-    player.health = min(player.health + amount, player.max_health)
+heal_player :: proc(player: ^Entity, amount: int) {
+	player.health = min(player.health + amount, player.max_health)
 }
 
 //
@@ -889,9 +952,18 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 	if gs.wave_spawn_timer <= 0 {
 		enemy := entity_create(gs)
 		if enemy != nil {
-			// Spawn on the right side, random so they don't all spawn at the same distances. (this spawns OUTSIDE of the screen)
 			map_width := f32(WORLD_W * TILE_LENGTH)
-			spawn_x := rand.float32_range(map_width * 0.6, map_width - SPAWN_MARGIN)
+			screen_half_width := map_width * 0.5
+			spawn_position := screen_half_width + SPAWN_MARGIN
+
+
+			fmt.println(screen_half_width)
+			fmt.println(spawn_position)
+
+			spawn_x := rand.float32_range(
+				rand.float32_range(spawn_position, spawn_position + SPAWN_MARGIN * 1.2),
+				spawn_position + SPAWN_MARGIN * 1.2,
+			)
 
 			setup_enemy(enemy, v2{spawn_x, -500})
 		}
@@ -904,11 +976,7 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 //
 // :draw :user
 
-draw_game_state :: proc(
-	gs: ^Game_State,
-	input_state: Input_State,
-	messages_out: ^[dynamic]Message,
-) {
+draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out: ^[dynamic]Event) {
 	using linalg
 	player: Entity
 
@@ -931,7 +999,7 @@ draw_game_state :: proc(
 	// :camera
 	draw_frame.camera_xform = Matrix4(1)
 
-    alpha := f32(accumulator) / f32(sims_per_second)
+	alpha := f32(accumulator) / f32(sims_per_second)
 
 	#partial switch gs.state_kind {
 	case .MENU:
@@ -950,18 +1018,22 @@ draw_game_state :: proc(
 			#partial switch en.kind {
 			case .player:
 				draw_player(en)
-            case .enemy, .player_projectile:
-                render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
+			case .enemy, .player_projectile:
+				render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
 
-                if en.kind == .enemy{
-                    draw_enemy_at_pos(en, render_pos)
-                }else{
-                    draw_rect_aabb(render_pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
-                }
+				if en.kind == .enemy {
+					draw_enemy_at_pos(en, render_pos)
+				} else {
+					draw_rect_aabb(
+						render_pos - PROJECTILE_SIZE * 0.5,
+						PROJECTILE_SIZE,
+						col = COLOR_WHITE,
+					)
+				}
 			}
 		}
 
-		for en in gs.entities {
+		for &en in gs.entities {
 			if en.kind == .player {
 				ui_base_pos := v2{-1000, 600}
 
@@ -976,29 +1048,49 @@ draw_game_state :: proc(
 				currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
 				draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
 
+				health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
+				draw_text(ui_base_pos + v2{0, -150}, health_text, scale = 2.0)
+
+				// -------- DEBUG (DELETE LATER) --------
+
+				stats_pos := v2{600, 600}
+
+				draw_debug_stats(&en, stats_pos)
+
 				break
 			}
 		}
+
+	    for text in gs.floating_texts{
+	       text_alpha := text.lifetime / text.max_lifetime
+	       color := text.color
+	       color.w = text_alpha
+	       draw_text(text.pos, text.text, scale = 1.5, color = color)
+	    }
 	case .PAUSED:
 		draw_tiles(gs, player)
 		for en in gs.entities {
 			#partial switch en.kind {
 			case .player:
 				draw_player(en)
-            case .enemy, .player_projectile:
-                render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
+			case .enemy, .player_projectile:
+				render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
 
-                if en.kind == .enemy{
-                    draw_enemy_at_pos(en, render_pos)
-                }else{
-                    draw_rect_aabb(render_pos - PROJECTILE_SIZE * 0.5, PROJECTILE_SIZE, col = COLOR_WHITE)
-                }
+				if en.kind == .enemy {
+					draw_enemy_at_pos(en, render_pos)
+				} else {
+					draw_rect_aabb(
+						render_pos - PROJECTILE_SIZE * 0.5,
+						PROJECTILE_SIZE,
+						col = COLOR_WHITE,
+					)
+				}
 			}
 		}
 
 		draw_pause_menu(gs)
 	case .SHOP:
-	   draw_shop_menu(gs)
+		draw_shop_menu(gs)
 	}
 }
 
@@ -1159,84 +1251,95 @@ draw_menu :: proc(gs: ^Game_State) {
 draw_pause_menu :: proc(gs: ^Game_State) {
 	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-    resume_button := make_centered_button(
-        PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT,
-        PAUSE_MENU_BUTTON_WIDTH,
-        PAUSE_MENU_BUTTON_HEIGHT,
-        "Resume",
-    )
+	resume_button := make_centered_button(
+		PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT,
+		PAUSE_MENU_BUTTON_WIDTH,
+		PAUSE_MENU_BUTTON_HEIGHT,
+		"Resume",
+	)
 
 
-    shop_button := make_centered_button(
-        0,
-        PAUSE_MENU_BUTTON_WIDTH,
-        PAUSE_MENU_BUTTON_HEIGHT,
-        "Shop",
-    )
+	shop_button := make_centered_button(
+		0,
+		PAUSE_MENU_BUTTON_WIDTH,
+		PAUSE_MENU_BUTTON_HEIGHT,
+		"Shop",
+	)
 
-    menu_button := make_centered_button(
-        -(PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT),
-        PAUSE_MENU_BUTTON_WIDTH,
-        PAUSE_MENU_BUTTON_HEIGHT,
-        "Main Menu",
-    )
+	menu_button := make_centered_button(
+		-(PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT),
+		PAUSE_MENU_BUTTON_WIDTH,
+		PAUSE_MENU_BUTTON_HEIGHT,
+		"Main Menu",
+	)
 
-    if draw_button(resume_button){
-        gs.state_kind = .PLAYING
-    }
+	if draw_button(resume_button) {
+		gs.state_kind = .PLAYING
+	}
 
-    if draw_button(menu_button){
-        gs.state_kind = .MENU
-    }
+	if draw_button(menu_button) {
+		gs.state_kind = .MENU
+	}
 
-    if draw_button(shop_button){
-        gs.state_kind = .SHOP
-    }
+	if draw_button(shop_button) {
+		gs.state_kind = .SHOP
+	}
 }
 
-draw_shop_menu :: proc(gs: ^Game_State){
-    draw_rect_aabb(v2{-2000, -2000}, v2{4000,4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+draw_shop_menu :: proc(gs: ^Game_State) {
+	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-    title_pos := v2{-200, 300}
-    draw_text(title_pos, "Statistics", scale = 3.0)
+	title_pos := v2{-200, 300}
+	draw_text(title_pos, "Statistics", scale = 3.0)
 
-    currency_pos := v2{-200, 250}
-    currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-    draw_text(currency_pos, currency_text, scale = 2.0)
+	currency_pos := v2{-200, 250}
+	currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+	draw_text(currency_pos, currency_text, scale = 2.0)
 
-    y_start := 150.0
-    spacing := 80.0
+	y_start := 150.0
+	spacing := 80.0
+	column_spacing := 400.0
 
-    for upgrade, i in Upgrade_Kind{
-        player := find_player(gs)
-        if player == nil do return
+	player := find_player(gs)
+	if player == nil do return
 
-        level := get_upgrade_level(player, upgrade)
-        cost := calculate_upgrade_cost(level)
+	column_count := 2
+	items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
 
-        button_text := fmt.tprintf("%v (Level %d) - Cost: %d", upgrade, level, cost)
-        button := make_centered_button(
-            auto_cast y_start - f32(i) * auto_cast spacing,
-            PAUSE_MENU_BUTTON_WIDTH * 1.5,
-            PAUSE_MENU_BUTTON_HEIGHT,
-            button_text,
-        )
+	for upgrade, i in Upgrade_Kind {
+		column := i / items_per_column
+		row := i % items_per_column
 
-        if draw_button(button){
-            try_purchase_upgrade(gs, player, upgrade)
-        }
-    }
+		level := get_upgrade_level(player, upgrade)
+		cost := calculate_upgrade_cost(level)
 
-    back_button := make_centered_button(
-        -300,
-        PAUSE_MENU_BUTTON_WIDTH,
-        PAUSE_MENU_BUTTON_HEIGHT,
-        "Back",
-    )
+		button_text := fmt.tprintf("%v (Level %d) - Cost: %d", upgrade, level, cost)
+		x_offset := f32(column) * auto_cast column_spacing - auto_cast column_spacing / 2
+		y_offset := f32(y_start) - f32(row) * auto_cast spacing
 
-    if draw_button(back_button){
-        gs.state_kind = .PLAYING
-    }
+		button := make_centered_button(
+			y_offset,
+			PAUSE_MENU_BUTTON_WIDTH * 1.5,
+			PAUSE_MENU_BUTTON_HEIGHT,
+			button_text,
+			x_offset = x_offset,
+		)
+
+		if draw_button(button) {
+			try_purchase_upgrade(gs, player, upgrade)
+		}
+	}
+
+	back_button := make_centered_button(
+		-350,
+		PAUSE_MENU_BUTTON_WIDTH,
+		PAUSE_MENU_BUTTON_HEIGHT,
+		"Back",
+	)
+
+	if draw_button(back_button) {
+		gs.state_kind = .PLAYING
+	}
 }
 
 draw_button :: proc(button: Button) -> bool {
@@ -1273,9 +1376,15 @@ make_centered_button :: proc(
 	height: f32,
 	text: string,
 	color := v4{0.2, 0.3, 0.8, 1.0},
+	x_offset := f32(0),
 ) -> Button {
 	return Button {
-		bounds = {-width * 0.5, y_pos - height * 0.5, width * 0.5, y_pos + height * 0.5},
+		bounds = {
+			-width * 0.5 + x_offset,
+			y_pos - height * 0.5,
+			width * 0.5 + x_offset,
+			y_pos + height * 0.5,
+		},
 		text = text,
 		text_scale = 2.0,
 		color = color,
@@ -1285,88 +1394,93 @@ make_centered_button :: proc(
 //
 // :upgrades
 
-find_player :: proc(gs: ^Game_State) -> ^Entity{
-    for &en in gs.entities {
-        if en.kind == .player {
-            return &en
-        }
-    }
+find_player :: proc(gs: ^Game_State) -> ^Entity {
+	for &en in gs.entities {
+		if en.kind == .player {
+			return &en
+		}
+	}
 
-    return nil
+	return nil
 }
 
-get_upgrade_level :: proc(player: ^Entity, upgrade: Upgrade_Kind) -> int{
-        switch upgrade {
-        case .attack_speed:
-            return player.upgrade_levels.attack_speed
-        case .accuracy:
-            return player.upgrade_levels.accuracy
-        case .damage:
-            return player.upgrade_levels.damage
-        case .armor:
-            return player.upgrade_levels.armor
-        case .life_steal:
-            return player.upgrade_levels.life_steal
-        case .exp_gain:
-            return player.upgrade_levels.exp_gain
-        case .crit_chance:
-            return player.upgrade_levels.crit_chance
-        case .crit_damage:
-            return player.upgrade_levels.crit_damage
-        case .multishot:
-            return player.upgrade_levels.multishot
-        case .health_regen:
-            return player.upgrade_levels.health_regen
-        case .dodge_chance:
-            return player.upgrade_levels.dodge_chance
-        case .fov_range:
-            return player.upgrade_levels.fov_range
-    }
-    return 0
+get_upgrade_level :: proc(player: ^Entity, upgrade: Upgrade_Kind) -> int {
+	switch upgrade {
+	case .attack_speed:
+		return player.upgrade_levels.attack_speed
+	case .accuracy:
+		return player.upgrade_levels.accuracy
+	case .damage:
+		return player.upgrade_levels.damage
+	case .armor:
+		return player.upgrade_levels.armor
+	case .life_steal:
+		return player.upgrade_levels.life_steal
+	case .exp_gain:
+		return player.upgrade_levels.exp_gain
+	case .crit_chance:
+		return player.upgrade_levels.crit_chance
+	case .crit_damage:
+		return player.upgrade_levels.crit_damage
+	case .multishot:
+		return player.upgrade_levels.multishot
+	case .health_regen:
+		return player.upgrade_levels.health_regen
+	case .dodge_chance:
+		return player.upgrade_levels.dodge_chance
+	case .fov_range:
+		return player.upgrade_levels.fov_range
+	}
+	return 0
 }
 
 calculate_upgrade_cost :: proc(current_level: int) -> int {
-    return UPGRADE_BASE_COST + (current_level * UPGRADE_COST_INCREMENT)
+	return UPGRADE_BASE_COST + (current_level * UPGRADE_COST_INCREMENT)
 }
 
-try_purchase_upgrade :: proc(gs: ^Game_State, player: ^Entity, upgrade: Upgrade_Kind){
-    level := get_upgrade_level(player, upgrade)
-    if level >= MAX_UPGRADE_LEVEL do return
+try_purchase_upgrade :: proc(gs: ^Game_State, player: ^Entity, upgrade: Upgrade_Kind) {
+	level := get_upgrade_level(player, upgrade)
+	if level >= MAX_UPGRADE_LEVEL do return
 
-    cost := calculate_upgrade_cost(level)
-    if gs.currency_points < cost do return
+	cost := calculate_upgrade_cost(level)
+	if gs.currency_points < cost do return
 
-    gs.currency_points -= cost
+	gs.currency_points -= cost
 
-    switch upgrade {
-    case .attack_speed:
-        player.upgrade_levels.attack_speed += 1
-        player.attack_speed = 1.0 + (f32(player.upgrade_levels.attack_speed) * ATTACK_SPEED_BONUS_PER_LEVEL)
-    case .accuracy:
-        player.upgrade_levels.accuracy += 1
-    case .damage:
-        player.upgrade_levels.damage += 1
-        player.damage = 10 + int(f32(player.damage) * DAMAGE_BONUS_PER_LEVEL * f32(player.upgrade_levels.damage))
-    case .armor:
-        player.upgrade_levels.armor += 1
-        player.max_health = 100 + int(f32(100) * ARMOR_BONUS_PER_LEVEL * f32(player.upgrade_levels.armor))
-        player.health = player.max_health
-    case .life_steal:
-        player.upgrade_levels.life_steal += 1
-    case .exp_gain:
-        player.upgrade_levels.exp_gain += 1
-    case .crit_chance:
-        player.upgrade_levels.crit_chance += 1
-    case .crit_damage:
-        player.upgrade_levels.crit_damage += 1
-    case .multishot:
-        player.upgrade_levels.multishot += 1
-    case .health_regen:
-        player.upgrade_levels.health_regen += 1
-    case .dodge_chance:
-        player.upgrade_levels.dodge_chance += 1
-    case .fov_range:
-        player.upgrade_levels.fov_range += 1
-        player.current_fov_range = FOV_RANGE + (f32(player.upgrade_levels.fov_range) * FOV_RANGE_BONUS_PER_LEVEL)
-    }
+	switch upgrade {
+	case .attack_speed:
+		player.upgrade_levels.attack_speed += 1
+		player.attack_speed =
+			1.0 + (f32(player.upgrade_levels.attack_speed) * ATTACK_SPEED_BONUS_PER_LEVEL)
+	case .accuracy:
+		player.upgrade_levels.accuracy += 1
+	case .damage:
+		player.upgrade_levels.damage += 1
+		player.damage =
+			10 +
+			int(f32(player.damage) * DAMAGE_BONUS_PER_LEVEL * f32(player.upgrade_levels.damage))
+	case .armor:
+		player.upgrade_levels.armor += 1
+		player.max_health =
+			100 + int(f32(100) * ARMOR_BONUS_PER_LEVEL * f32(player.upgrade_levels.armor))
+		player.health = player.max_health
+	case .life_steal:
+		player.upgrade_levels.life_steal += 1
+	case .exp_gain:
+		player.upgrade_levels.exp_gain += 1
+	case .crit_chance:
+		player.upgrade_levels.crit_chance += 1
+	case .crit_damage:
+		player.upgrade_levels.crit_damage += 1
+	case .multishot:
+		player.upgrade_levels.multishot += 1
+	case .health_regen:
+		player.upgrade_levels.health_regen += 1
+	case .dodge_chance:
+		player.upgrade_levels.dodge_chance += 1
+	case .fov_range:
+		player.upgrade_levels.fov_range += 1
+		player.current_fov_range =
+			FOV_RANGE + (f32(player.upgrade_levels.fov_range) * FOV_RANGE_BONUS_PER_LEVEL)
+	}
 }

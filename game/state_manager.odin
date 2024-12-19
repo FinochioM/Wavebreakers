@@ -8,6 +8,6 @@ app_state: struct {
 	bind:          sg.Bindings,
 	input_state:   Input_State,
 	game:          Game_State,
-	message_queue: [dynamic]Message,
+	message_queue: [dynamic]Event,
 	camera_pos:    Vector2,
 }
