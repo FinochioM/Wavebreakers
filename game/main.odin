@@ -365,7 +365,7 @@ CRIT_DAMAGE_PER_LEVEL :: 0.2
 MULTISHOT_CHANCE_PER_LEVEL :: 0.1
 DODGE_CHANCE_PER_LEVEL :: 0.03
 FOV_RANGE_BONUS_PER_LEVEL :: 50.0
-HEALTH_REGEN_PER_LEVEL :: 0.01
+HEALTH_REGEN_PER_LEVEL :: 0.1
 
 handle_to_entity :: proc(gs: ^Game_State, handle: Entity_Handle) -> ^Entity {
 	for &en in gs.entities {
@@ -816,7 +816,7 @@ calculate_intercept_point :: proc(
 	return predicted_pos, time
 }
 
-setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
+setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2, is_multishot := false) {
 	e.kind = .player_projectile
 	e.flags |= {.allocated}
 
@@ -828,20 +828,25 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2) {
 	// Get the current accuracy level
 	player := find_player(&app_state.game)
 
-	if player != nil {
-		multishot_chance := f32(player.upgrade_levels.multishot) * MULTISHOT_CHANCE_PER_LEVEL
-		if rand.float32() < multishot_chance {
-			extra_projectile := entity_create(&app_state.game)
-			if extra_projectile != nil {
-				angle_offset := rand.float32_range(-0.2, 0.2)
-				modified_target :=
-					target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
-				setup_projectile(extra_projectile, pos, modified_target)
-			}
-		}
-	}
+    if player != nil && !is_multishot {
+        multishot_level := player.upgrade_levels.multishot
+        multishot_chance := f32(multishot_level) * MULTISHOT_CHANCE_PER_LEVEL
 
-	accuracy_level := player.upgrade_levels.accuracy if player != nil else 0
+        // Try to spawn up to 2 additional projectiles
+        for i := 0; i < 2; i += 1 {
+            if rand.float32() < multishot_chance {
+                extra_projectile := entity_create(&app_state.game)
+                if extra_projectile != nil {
+                    angle_offset := rand.float32_range(-0.2, 0.2)
+                    modified_target := target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
+                    // Pass is_multishot = true to prevent further spawning
+                    setup_projectile(extra_projectile, pos, modified_target, true)
+                }
+            }
+        }
+    }
+
+    accuracy_level := player != nil ? player.upgrade_levels.accuracy : 0
 
 	to_target := target_pos - spawn_position
 	distance := linalg.length(to_target)
@@ -955,10 +960,6 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 			map_width := f32(WORLD_W * TILE_LENGTH)
 			screen_half_width := map_width * 0.5
 			spawn_position := screen_half_width + SPAWN_MARGIN
-
-
-			fmt.println(screen_half_width)
-			fmt.println(spawn_position)
 
 			spawn_x := rand.float32_range(
 				rand.float32_range(spawn_position, spawn_position + SPAWN_MARGIN * 1.2),
