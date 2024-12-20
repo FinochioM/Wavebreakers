@@ -16,6 +16,7 @@ Image_Id :: enum {
 	nil,
 	player,
 	enemy,
+	player_projectile,
 }
 
 Image :: struct {

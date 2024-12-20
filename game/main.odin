@@ -975,12 +975,8 @@ draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out:
 
 				if en.kind == .enemy {
 					draw_enemy_at_pos(en, render_pos)
-				} else {
-					draw_rect_aabb(
-						render_pos - PROJECTILE_SIZE * 0.5,
-						PROJECTILE_SIZE,
-						col = COLOR_WHITE,
-					)
+				} else if en.kind == .player_projectile {
+					draw_player_projectile_at_pos(en, render_pos)
 				}
 			}
 		}
@@ -1032,12 +1028,8 @@ draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out:
 
 				if en.kind == .enemy {
 					draw_enemy_at_pos(en, render_pos)
-				} else {
-					draw_rect_aabb(
-						render_pos - PROJECTILE_SIZE * 0.5,
-						PROJECTILE_SIZE,
-						col = COLOR_WHITE,
-					)
+				} else if en.kind == .player_projectile{
+					draw_player_projectile_at_pos(en, render_pos)
 				}
 			}
 		}
@@ -1064,6 +1056,15 @@ draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
 	xform *= xform_scale(v2{5, 5})
 
 	draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
+}
+
+draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
+    img := Image_Id.player_projectile
+
+    xform := Matrix4(1)
+    xform *= xform_scale(v2{5,5})
+
+    draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }
 
 screen_to_world_pos :: proc(screen_pos: Vector2) -> Vector2 {
