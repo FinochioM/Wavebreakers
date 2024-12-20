@@ -20,8 +20,8 @@ import stbi "vendor:stb/image"
 import stbrp "vendor:stb/rect_pack"
 import stbtt "vendor:stb/truetype"
 
-window_w :: 1280
-window_h :: 720
+window_w: i32 =  1280
+window_h: i32 =  720
 
 last_time: t.Time
 accumulator: f64
@@ -213,9 +213,10 @@ draw_tiles :: proc(gs: ^Game_State, player: Entity) {
 
 first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.state_kind = .MENU
-	load_map_into_tiles(gs.tiles[:])
+    gs.wave_status = .WAITING
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
+	load_map_into_tiles(gs.tiles[:])
 }
 
 //
@@ -243,9 +244,10 @@ Game_State :: struct {
 	available_points:     int, // Experience
 	currency_points:      int, // Currency
 	floating_texts:       [dynamic]Floating_Text,
+	wave_status:          Wave_Status,
+	active_enemies:       int,
 }
 
-// Messages are now single player events
 Event_Kind :: enum {
 	shoot,
 }
@@ -415,7 +417,7 @@ setup_player :: proc(e: ^Entity) {
 
 	e.health = 50
 	e.max_health = 100
-	e.damage = 10
+	e.damage = 15
 	e.attack_speed = 1.0
 	e.attack_timer = 0.0
 
@@ -492,7 +494,7 @@ handle_input :: proc(gs: ^Game_State) {
 				gs.wave_number = 0
 				gs.enemies_to_spawn = 0
 				gs.available_points = 0
-				gs.currency_points = 1000
+				gs.currency_points = 0
 				gs.player_level = 0
 				gs.player_experience = 0
 
@@ -647,6 +649,12 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
 
 //
 // :behaviour
+Wave_Status :: enum{
+    WAITING,
+    IN_PROGRESS,
+    COMPLETED,
+}
+
 Floating_Text :: struct {
     pos: Vector2,
     text: string,
@@ -825,21 +833,18 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2, is_multi
 	e.pos = spawn_position
 	e.prev_pos = spawn_position
 
-	// Get the current accuracy level
 	player := find_player(&app_state.game)
 
     if player != nil && !is_multishot {
         multishot_level := player.upgrade_levels.multishot
         multishot_chance := f32(multishot_level) * MULTISHOT_CHANCE_PER_LEVEL
 
-        // Try to spawn up to 2 additional projectiles
         for i := 0; i < 2; i += 1 {
             if rand.float32() < multishot_chance {
                 extra_projectile := entity_create(&app_state.game)
                 if extra_projectile != nil {
                     angle_offset := rand.float32_range(-0.2, 0.2)
                     modified_target := target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
-                    // Pass is_multishot = true to prevent further spawning
                     setup_projectile(extra_projectile, pos, modified_target, true)
                 }
             }
@@ -897,6 +902,11 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
 	}
 
 	add_currency_points(gs, POINTS_PER_ENEMY)
+	gs.active_enemies -= 1
+
+	if gs.active_enemies == 0 && gs.enemies_to_spawn == 0{
+	   gs.wave_status = .COMPLETED
+	}
 }
 
 when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: ^Entity) {
@@ -947,10 +957,13 @@ init_wave :: proc(gs: ^Game_State, wave_number: int) {
 	gs.wave_number = wave_number
 	gs.wave_spawn_timer = WAVE_SPAWN_RATE
 	gs.wave_spawn_rate = WAVE_SPAWN_RATE
-	gs.enemies_to_spawn = wave_number * 5 // This is a placeholder, later will make it so it scales with the wave number or some calculation.
+	gs.enemies_to_spawn = wave_number * 5
+	gs.active_enemies = 0
+	gs.wave_status = .WAITING
 }
 
 process_wave :: proc(gs: ^Game_State, delta_t: f64) {
+    if gs.wave_status != .IN_PROGRESS do return
 	if gs.enemies_to_spawn <= 0 do return
 
 	gs.wave_spawn_timer -= f32(delta_t)
@@ -967,6 +980,7 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 			)
 
 			setup_enemy(enemy, v2{spawn_x, -500})
+			gs.active_enemies += 1
 		}
 
 		gs.enemies_to_spawn -= 1
@@ -984,8 +998,8 @@ draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out:
 	map_width := f32(WORLD_W * TILE_LENGTH) // 2048
 	map_height := f32(WORLD_H * TILE_LENGTH) // 1280
 
-	scale_x := window_w / map_width
-	scale_y := window_h / map_height
+	scale_x := window_w / i32(map_width)
+	scale_y := window_h / i32(map_height)
 	scale := min(scale_x, scale_y)
 
 	draw_frame.projection = matrix_ortho3d_f32(
@@ -1062,6 +1076,8 @@ draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out:
 			}
 		}
 
+        draw_wave_button(gs)
+
 	    for text in gs.floating_texts{
 	       text_alpha := text.lifetime / text.max_lifetime
 	       color := text.color
@@ -1114,16 +1130,25 @@ draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
 }
 
 screen_to_world_pos :: proc(screen_pos: Vector2) -> Vector2 {
-	map_width := f32(WORLD_W * TILE_LENGTH)
-	map_height := f32(WORLD_H * TILE_LENGTH)
+    map_width := f32(WORLD_W * TILE_LENGTH)
+    map_height := f32(WORLD_H * TILE_LENGTH)
 
-	normalized_x := (screen_pos.x / f32(window_w)) * 2.0 - 1.0
-	normalized_y := -((screen_pos.y / f32(window_h)) * 2.0 - 1.0)
+    scale_x := f32(window_w) / map_width
+    scale_y := f32(window_h) / map_height
+    scale := min(scale_x, scale_y)
 
-	world_x := normalized_x * (map_width * 0.5)
-	world_y := normalized_y * (map_height * 0.5)
+    viewport_width := map_width * scale
+    viewport_height := map_height * scale
+    offset_x := (f32(window_w) - viewport_width) * 0.5
+    offset_y := (f32(window_h) - viewport_height) * 0.5
 
-	return Vector2{world_x, world_y}
+    adjusted_x := (screen_pos.x - offset_x) / scale
+    adjusted_y := (screen_pos.y - offset_y) / scale
+
+    world_x := adjusted_x - map_width * 0.5
+    world_y := map_height * 0.5 - adjusted_y
+
+    return Vector2{world_x, world_y}
 }
 
 //
@@ -1235,6 +1260,8 @@ MENU_BUTTON_HEIGHT :: 50.0
 PAUSE_MENU_BUTTON_WIDTH :: 200.0
 PAUSE_MENU_BUTTON_HEIGHT :: 50.0
 PAUSE_MENU_SPACING :: 20.0
+WAVE_BUTTON_WIDTH :: 200.0
+WAVE_BUTTON_HEIGHT :: 50.0
 
 draw_menu :: proc(gs: ^Game_State) {
 	play_button := make_centered_button(0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
@@ -1341,6 +1368,46 @@ draw_shop_menu :: proc(gs: ^Game_State) {
 	if draw_button(back_button) {
 		gs.state_kind = .PLAYING
 	}
+}
+
+draw_wave_button :: proc(gs: ^Game_State){
+    button_pos := v2{0, 500}
+
+    #partial switch gs.wave_status {
+        case .WAITING:
+            button := Button{
+                bounds = {
+                    button_pos.x - WAVE_BUTTON_WIDTH * 0.5,
+                    button_pos.y - WAVE_BUTTON_HEIGHT * 0.5,
+                    button_pos.x + WAVE_BUTTON_WIDTH * 0.5,
+                    button_pos.y + WAVE_BUTTON_HEIGHT * 0.5,
+                },
+                text = fmt.tprintf("Start Wave %d", gs.wave_number),
+                text_scale = 2.0,
+                color = v4{0.2, 0.6, 0.2, 1.0},
+            }
+
+            if draw_button(button){
+                gs.wave_status = .IN_PROGRESS
+            }
+        case .COMPLETED:
+            button := Button{
+                bounds = {
+                    button_pos.x - WAVE_BUTTON_WIDTH * 0.5,
+                    button_pos.y - WAVE_BUTTON_HEIGHT * 0.5,
+                    button_pos.x + WAVE_BUTTON_WIDTH * 0.5,
+                    button_pos.y + WAVE_BUTTON_HEIGHT * 0.5,
+                },
+                text = fmt.tprintf("Start Wave %d", gs.wave_number + 1),
+                text_scale = 2.0,
+                color = v4{0.2, 0.6, 0.2, 1.0},
+            }
+
+            if draw_button(button){
+                init_wave(gs, gs.wave_number + 1)
+                gs.wave_status = .IN_PROGRESS
+            }
+    }
 }
 
 draw_button :: proc(button: Button) -> bool {
