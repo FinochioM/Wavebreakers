@@ -40,6 +40,7 @@ Game_State_Kind :: enum {
 	PLAYING,
 	PAUSED,
 	SHOP,
+	GAME_OVER,
 }
 
 Game_State :: struct {

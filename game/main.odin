@@ -327,7 +327,7 @@ setup_player :: proc(e: ^Entity) {
 
 	e.pos = v2{-900, -500}
 
-	e.health = 50
+	e.health = 100
 	e.max_health = 100
 	e.damage = 10
 	e.attack_speed = 1.0
@@ -355,7 +355,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 
 	e.pos = pos
 	e.prev_pos = pos
-	e.health = int(f32(base_health) * health_mult * difficulty)
+    e.health = int(f32(base_health) * health_mult * difficulty)
 	e.max_health = e.health
 	e.attack_timer = 0.0
 	e.damage = int(f32(base_damage) * damage_mult * difficulty)
@@ -417,7 +417,7 @@ handle_input :: proc(gs: ^Game_State) {
 				gs.wave_number = 0
 				gs.enemies_to_spawn = 0
 				gs.available_points = 0
-				gs.currency_points = 1000
+				gs.currency_points = 0
 				gs.player_level = 0
 				gs.player_experience = 0
 
@@ -493,6 +493,10 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
 
 		for &en in gs.entities {
 			if en.kind == .player {
+			    if en.health <= 0 {
+			         gs.state_kind = .GAME_OVER
+			    }
+
 				en.health_regen_timer -= f32(delta_t)
 				if en.health_regen_timer <= 0 {
                     if en.upgrade_levels.health_regen > 0{
@@ -633,8 +637,12 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		if en.attack_timer <= 0 {
 			if en.target != nil {
 				damage := process_enemy_damage(en.target, en.damage)
-				fmt.printf("Attacking\n")
 				en.target.health -= damage
+
+				if en.target.health <= 0{
+				    en.target.health = 0
+				}
+
 				en.attack_timer = ENEMY_ATTACK_COOLDOWN
 			}
 		}
@@ -926,7 +934,7 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 }
 
 //
-// :draw :user
+// :render
 
 draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out: ^[dynamic]Event) {
 	using linalg
@@ -1037,6 +1045,8 @@ draw_game_state :: proc(gs: ^Game_State, input_state: Input_State, messages_out:
 		draw_pause_menu(gs)
 	case .SHOP:
 		draw_shop_menu(gs)
+	case .GAME_OVER:
+	   draw_game_over_screen(gs)
 	}
 }
 
@@ -1061,7 +1071,11 @@ draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
 draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
     img := Image_Id.player_projectile
 
+    angle := math.atan2(en.direction.y, en.direction.x)
+    final_angle := math.to_degrees(angle)
+
     xform := Matrix4(1)
+    xform *= xform_rotate(final_angle)
     xform *= xform_scale(v2{5,5})
 
     draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
@@ -1298,6 +1312,28 @@ draw_shop_menu :: proc(gs: ^Game_State) {
 
 	if draw_button(back_button) {
 		gs.state_kind = .PLAYING
+	}
+}
+
+draw_game_over_screen :: proc(gs: ^Game_State){
+	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.7})
+
+	title_pos := v2{-200, 100}
+	draw_text(title_pos, "Game Over!", scale = 3.0)
+
+	wave_text_pos := v2{-150, 0}
+	wave_text := fmt.tprintf("Waves Completed %d", gs.wave_number - 1)
+	draw_text(wave_text_pos, wave_text, scale = 2.0)
+
+	menu_button := make_centered_button(
+	   -100,
+	   MENU_BUTTON_WIDTH,
+	   MENU_BUTTON_HEIGHT,
+	   "Main Menu",
+	)
+
+	if draw_button(menu_button){
+	   gs.state_kind = .MENU
 	}
 }
 
