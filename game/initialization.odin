@@ -98,15 +98,14 @@ frame_init :: proc "c" () {
 	accumulator += frame_time
 
     for accumulator >= sims_per_second {
-        update_gameplay(&app_state.game, sims_per_second, app_state.message_queue[:])
+        update_gameplay(&app_state.game, sims_per_second)
         last_sim_time = seconds_since_init()
-        clear(&app_state.message_queue)
         accumulator -= sims_per_second
     }
 
 	draw_frame.reset = {}
 	dt := seconds_since_init() - last_sim_time
-	render_gameplay(&app_state.game, app_state.input_state, &app_state.message_queue)
+	render_gameplay(&app_state.game, app_state.input_state)
 
 	reset_input_state_for_next_frame(&app_state.input_state)
 

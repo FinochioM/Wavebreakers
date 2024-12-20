@@ -12,14 +12,6 @@ Tile :: struct {
 	debug_tile: bool,
 }
 
-Event_Kind :: enum {
-	shoot,
-}
-
-Event :: struct {
-	kind: Event_Kind,
-}
-
 Wave_Status :: enum{
     WAITING,
     IN_PROGRESS,

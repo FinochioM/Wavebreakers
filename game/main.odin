@@ -217,32 +217,11 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 }
 
 //
-// :GAME STATE
-
-add_message :: proc(messages: ^[dynamic]Event, new_message: Event) -> ^Event {
-
-	for msg in messages {
-		#partial switch msg.kind {
-		case:
-			if msg.kind == new_message.kind {
-				return nil
-			}
-		}
-	}
-
-	index := append(messages, new_message) - 1
-	return &messages[index]
-}
-
-
-//
 // :ENTITY
 
 EXPERIENCE_PER_LEVEL :: 100
 EXPERIENCE_PER_ENEMY :: 3
 POINTS_PER_ENEMY :: 1
-
-
 
 Entity_Handle :: u64
 
@@ -465,7 +444,7 @@ handle_input :: proc(gs: ^Game_State) {
 	}
 }
 
-update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
+update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 	defer gs.tick_index += 1
 
 	#partial switch gs.state_kind {
@@ -577,7 +556,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
 //
 // :render
 
-render_gameplay :: proc(gs: ^Game_State, input_state: Input_State, messages_out: ^[dynamic]Event) {
+render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	using linalg
 	player: Entity
 
