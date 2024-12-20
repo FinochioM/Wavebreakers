@@ -63,10 +63,6 @@ cleanup :: proc "c" () {
 // :GAME
 
 // :tile
-Tile :: struct {
-	type:       u8,
-	debug_tile: bool,
-}
 
 // #volatile with the map image dimensions
 WORLD_W :: 128
@@ -216,45 +212,15 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
     gs.wave_status = .WAITING
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
+    gs.wave_config = init_wave_config()
 	load_map_into_tiles(gs.tiles[:])
 }
 
 //
 // :GAME STATE
 
-Game_State_Kind :: enum {
-	MENU,
-	PLAYING,
-	PAUSED,
-	SHOP,
-}
 
-Game_State :: struct {
-	state_kind:           Game_State_Kind,
-	tick_index:           u64,
-	entities:             [128]Entity,
-	latest_entity_handle: Entity_Handle,
-	tiles:                [WORLD_W * WORLD_H]Tile,
-	player_level:         int,
-	player_experience:    int,
-	wave_number:          int,
-	wave_spawn_timer:     f32,
-	wave_spawn_rate:      f32,
-	enemies_to_spawn:     int,
-	available_points:     int, // Experience
-	currency_points:      int, // Currency
-	floating_texts:       [dynamic]Floating_Text,
-	wave_status:          Wave_Status,
-	active_enemies:       int,
-}
 
-Event_Kind :: enum {
-	shoot,
-}
-
-Event :: struct {
-	kind: Event_Kind,
-}
 
 add_message :: proc(messages: ^[dynamic]Event, new_message: Event) -> ^Event {
 
@@ -279,61 +245,7 @@ EXPERIENCE_PER_LEVEL :: 100
 EXPERIENCE_PER_ENEMY :: 3
 POINTS_PER_ENEMY :: 1
 
-Enemy_state :: enum {
-	idle,
-	moving,
-	attacking,
-}
 
-Entity_Flags :: enum {
-	allocated,
-	physics,
-}
-
-Entity_Kind :: enum {
-	nil,
-	player,
-	enemy,
-	player_projectile,
-}
-
-Entity :: struct {
-	id:                 Entity_Handle,
-	kind:               Entity_Kind,
-	flags:              bit_set[Entity_Flags],
-	pos:                Vector2,
-	prev_pos:           Vector2,
-	direction:          Vector2,
-	health:             int,
-	max_health:         int,
-	damage:             int,
-	attack_speed:       f32,
-	attack_timer:       f32,
-	speed:              f32,
-	value:              int,
-	enemy_type:         int,
-	state:              Enemy_state,
-	target:             ^Entity,
-	frame:              struct {},
-	level:              int, // Current level
-	experience:         int, // Current currency
-	upgrade_levels:     struct {
-		attack_speed: int,
-		accuracy:     int,
-		damage:       int,
-		armor:        int,
-		life_steal:   int,
-		exp_gain:     int,
-		crit_chance:  int,
-		crit_damage:  int,
-		multishot:    int,
-		health_regen: int,
-		dodge_chance: int,
-		fov_range:    int,
-	},
-	health_regen_timer: f32,
-	current_fov_range:  f32,
-}
 
 Entity_Handle :: u64
 
@@ -367,7 +279,7 @@ CRIT_DAMAGE_PER_LEVEL :: 0.2
 MULTISHOT_CHANCE_PER_LEVEL :: 0.1
 DODGE_CHANCE_PER_LEVEL :: 0.03
 FOV_RANGE_BONUS_PER_LEVEL :: 50.0
-HEALTH_REGEN_PER_LEVEL :: 0.1
+HEALTH_REGEN_PER_LEVEL :: 0.9
 
 handle_to_entity :: proc(gs: ^Game_State, handle: Entity_Handle) -> ^Entity {
 	for &en in gs.entities {
@@ -417,7 +329,7 @@ setup_player :: proc(e: ^Entity) {
 
 	e.health = 50
 	e.max_health = 100
-	e.damage = 15
+	e.damage = 10
 	e.attack_speed = 1.0
 	e.attack_timer = 0.0
 
@@ -426,18 +338,29 @@ setup_player :: proc(e: ^Entity) {
 	e.current_fov_range = FOV_RANGE
 }
 
-setup_enemy :: proc(e: ^Entity, pos: Vector2) {
+setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 	e.kind = .enemy
 	e.flags |= {.allocated}
 
+	base_health := 15
+	base_damage := 5
+	base_speed := 100.0
+
+	config := app_state.game.wave_config
+	wave_num := f32(app_state.game.wave_number)
+
+	health_mult := 1.0 + (config.health_scale * wave_num)
+	damage_mult := 1.0 + (config.damage_scale * wave_num)
+	speed_mult := 1.0 + (config.speed_scale * wave_num)
+
 	e.pos = pos
 	e.prev_pos = pos
-	e.health = 30
-	e.max_health = 100
+	e.health = int(f32(base_health) * health_mult * difficulty)
+	e.max_health = e.health
 	e.attack_timer = 0.0
-	e.damage = 5
+	e.damage = int(f32(base_damage) * damage_mult * difficulty)
 	e.state = .moving
-	e.speed = 200.0
+	e.speed = f32(base_speed) * speed_mult
 	e.value = 10
 	e.enemy_type = 1
 }
@@ -494,7 +417,7 @@ handle_input :: proc(gs: ^Game_State) {
 				gs.wave_number = 0
 				gs.enemies_to_spawn = 0
 				gs.available_points = 0
-				gs.currency_points = 0
+				gs.currency_points = 1000
 				gs.player_level = 0
 				gs.player_experience = 0
 
@@ -572,14 +495,17 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
 			if en.kind == .player {
 				en.health_regen_timer -= f32(delta_t)
 				if en.health_regen_timer <= 0 {
-					regen_amount := int(
-						f32(en.upgrade_levels.health_regen) * HEALTH_REGEN_PER_LEVEL,
-					)
-					if regen_amount > 0 {
-						heal_player(&en, regen_amount)
-					}
+                    if en.upgrade_levels.health_regen > 0{
+                        heal_player(&en, 1)
 
-					en.health_regen_timer = 1.0
+                        base_regen_time := 10.0
+                        level_reduction := f32(en.upgrade_levels.health_regen) * HEALTH_REGEN_PER_LEVEL
+                        actual_regen_time := math.max(f32(base_regen_time) - level_reduction, 1.0)
+
+                        en.health_regen_timer = actual_regen_time
+                    }else{
+                        en.health_regen_timer = 10.0
+                    }
 				}
 
 				en.attack_timer -= f32(delta_t)
@@ -649,20 +575,6 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64, messages: []Event) {
 
 //
 // :behaviour
-Wave_Status :: enum{
-    WAITING,
-    IN_PROGRESS,
-    COMPLETED,
-}
-
-Floating_Text :: struct {
-    pos: Vector2,
-    text: string,
-    lifetime: f32,
-    max_lifetime: f32,
-    velocity:  Vector2,
-    color: Vector4,
-}
 
 spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color := COLOR_WHITE){
     text_copy := strings.clone(text, context.allocator)
@@ -709,12 +621,14 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	// State behaviors
 	#partial switch en.state {
 	case .moving:
-		if distance > 1.0 {
+		if distance > 2.0 {
 			en.prev_pos = en.pos
 			direction = linalg.normalize(direction)
 			en.pos += direction * en.speed * delta_t
 		}
 	case .attacking:
+	    en.prev_pos = en.pos
+        en.speed = 0
 		en.attack_timer -= delta_t
 		if en.attack_timer <= 0 {
 			if en.target != nil {
@@ -736,10 +650,6 @@ process_enemy_damage :: proc(player: ^Entity, damage: int) -> int {
 	return damage
 }
 
-Enemy_Target :: struct {
-	entity:   ^Entity,
-	distance: f32,
-}
 
 find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) -> []Enemy_Target {
 	player := find_player(gs)
@@ -953,13 +863,40 @@ heal_player :: proc(player: ^Entity, amount: int) {
 SPAWN_MARGIN :: 100 // Some margin for the enemies to spawn on the right side of the screen (OUTSIDE)
 WAVE_SPAWN_RATE :: 2.0 // Time between enemy spawns
 
+init_wave_config :: proc() -> Wave_Config{
+    return Wave_Config{
+        base_enemy_count = 5,
+        enemy_count_increase = 2,
+        max_enemy_count = 25,
+        base_difficulty = 1.0,
+        difficulty_scale_factor = 0.15,
+
+        health_scale = 0.05,
+        damage_scale = 0.03,
+        speed_scale = 0.01,
+    }
+}
+
 init_wave :: proc(gs: ^Game_State, wave_number: int) {
-	gs.wave_number = wave_number
-	gs.wave_spawn_timer = WAVE_SPAWN_RATE
-	gs.wave_spawn_rate = WAVE_SPAWN_RATE
-	gs.enemies_to_spawn = wave_number * 5
+    gs.wave_number = wave_number
+    gs.wave_spawn_timer = WAVE_SPAWN_RATE
+    gs.wave_spawn_rate = WAVE_SPAWN_RATE
+
+    gs.enemies_to_spawn = calculate_wave_enemies(wave_number, gs.wave_config)
+    gs.current_wave_difficulty = calculate_wave_difficulty(wave_number, gs.wave_config)
+
 	gs.active_enemies = 0
 	gs.wave_status = .WAITING
+}
+
+calculate_wave_enemies := proc(wave_number: int, config: Wave_Config) -> int {
+    enemy_count := config.base_enemy_count + (wave_number - 1) * config.enemy_count_increase
+    return min(enemy_count, config.max_enemy_count)
+}
+
+calculate_wave_difficulty :: proc(wave_number: int, config: Wave_Config) -> f32{
+    difficulty_mult := 1.0 + math.log_f32(f32(wave_number), math.E) * config.difficulty_scale_factor
+    return config.base_difficulty * difficulty_mult
 }
 
 process_wave :: proc(gs: ^Game_State, delta_t: f64) {
@@ -979,7 +916,7 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 				spawn_position + SPAWN_MARGIN * 1.2,
 			)
 
-			setup_enemy(enemy, v2{spawn_x, -500})
+			setup_enemy(enemy, v2{spawn_x, -500}, gs.current_wave_difficulty)
 			gs.active_enemies += 1
 		}
 
@@ -1247,13 +1184,6 @@ almost_equals :: proc(a: f32, b: f32, epsilon: f32 = 0.001) -> bool {
 
 //
 // : Menus
-
-Button :: struct {
-	bounds:     AABB,
-	text:       string,
-	text_scale: f32,
-	color:      Vector4,
-}
 
 MENU_BUTTON_WIDTH :: 200.0
 MENU_BUTTON_HEIGHT :: 50.0
