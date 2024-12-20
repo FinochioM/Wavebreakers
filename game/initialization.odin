@@ -106,7 +106,7 @@ frame_init :: proc "c" () {
 
 	draw_frame.reset = {}
 	dt := seconds_since_init() - last_sim_time
-	draw_game_state(&app_state.game, app_state.input_state, &app_state.message_queue)
+	render_gameplay(&app_state.game, app_state.input_state, &app_state.message_queue)
 
 	reset_input_state_for_next_frame(&app_state.input_state)
 

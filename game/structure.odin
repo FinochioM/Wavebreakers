@@ -137,3 +137,24 @@ Wave_Config :: struct {
     speed_scale: f32,
 }
 
+Skill_Kind :: enum {
+    damage,
+    attack_speed,
+    accuracy,
+    armor,
+    life_steal,
+    exp_gain,
+    crit_chance,
+    crit_damage,
+    multishot,
+    health_regen,
+    dodge_chance,
+    fov_range,
+}
+
+Skill :: struct {
+    kind: Skill_Kind,
+    level: int,
+    experience: int,
+    unlocked: bool
+}
