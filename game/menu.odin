@@ -290,10 +290,9 @@ draw_quest_button :: proc(gs: ^Game_State) {
         }
     }
 
-    // Set color based on availability using regular if statement
-    button_color := v4{0.4, 0.4, 0.4, 0.5} // Default grayed out
+    button_color := v4{0.4, 0.4, 0.4, 0.5}
     if has_available_quests {
-        button_color = v4{0.6, 0.4, 0.2, 1.0} // Normal color when available
+        button_color = v4{0.6, 0.4, 0.2, 1.0}
     }
 
     quest_button := make_centered_button(
@@ -305,7 +304,6 @@ draw_quest_button :: proc(gs: ^Game_State) {
         color = button_color,
     )
 
-    // Only allow clicking if quests are available
     if draw_button(quest_button) && has_available_quests {
         gs.state_kind = .QUESTS
     }

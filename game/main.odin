@@ -875,19 +875,16 @@ get_aabb_from_entity :: proc(en: Entity) -> AABB {
 }
 
 aabb_collide_aabb :: proc(a: AABB, b: AABB) -> (bool, Vector2) {
-	// Calculate overlap on each axis
 	dx := (a.z + a.x) / 2 - (b.z + b.x) / 2
 	dy := (a.w + a.y) / 2 - (b.w + b.y) / 2
 
 	overlap_x := (a.z - a.x) / 2 + (b.z - b.x) / 2 - abs(dx)
 	overlap_y := (a.w - a.y) / 2 + (b.w - b.y) / 2 - abs(dy)
 
-	// If there is no overlap on any axis, there is no collision
 	if overlap_x <= 0 || overlap_y <= 0 {
 		return false, Vector2{}
 	}
 
-	// Find the penetration vector
 	penetration := Vector2{}
 	if overlap_x < overlap_y {
 		penetration.x = overlap_x if dx > 0 else -overlap_x
@@ -1384,20 +1381,50 @@ apply_quest_effects :: proc(gs: ^Game_State, quest: ^Quest) {
         case .Gold_Fever:
             quest.effects.currency_mult = 2.0
             quest.effects.damage_mult = 0.7
-
         case .Experience_Flow:
             quest.effects.experience_mult = 2.0
             quest.effects.attack_speed_mult = 0.7
-
         case .Blood_Ritual:
             quest.effects.damage_mult = 2.0
             quest.effects.health_mult = 0.7
-
         case .Risk_Reward:
             quest.effects.damage_mult = 2.0
             quest.effects.health_mult = 0.5
-
-        // Add effects for other quests here
+        case .Time_Dilation:
+            quest.effects.attack_speed_mult = 0.8
+            quest.effects.damage_mult = 1.5
+        case .Chain_Reaction:
+            // Chain reaction is handled in when_enemy_dies
+            quest.effects.damage_mult = 1.2
+        case .Energy_Field:
+            // Energy field will be handled in when_projectile_hits_enemy
+            quest.effects.damage_mult = 1.3
+        case .Projectile_Master:
+            // Will need special handling in setup_projectile
+            quest.effects.damage_mult = 0.8  // Lower damage since we'll fire more projectiles
+        case .Critical_Cascade:
+            quest.effects.attack_speed_mult = 1.2
+            quest.effects.damage_mult = 1.2
+        case .Priority_Target:
+            // Will need special handling in when_projectile_hits_enemy
+            quest.effects.damage_mult = 1.4
+        case .Sniper_Protocol:
+            // Will need special handling in when_projectile_hits_enemy
+            quest.effects.damage_mult = 1.5
+            quest.effects.attack_speed_mult = 0.8
+        case .Crowd_Suppression:
+            // Will need special handling in when_projectile_hits_enemy
+            quest.effects.damage_mult = 1.0  // Base damage, will increase with enemy count
+        case .Elemental_Rotation:
+            // Will need special handling in setup_projectile
+            quest.effects.damage_mult = 1.3
+        case .Defensive_Matrix:
+            quest.effects.health_mult = 1.5
+            quest.effects.attack_speed_mult = 1.2
+        case .Fortune_Seeker:
+            quest.effects.currency_mult = 1.5
+            quest.effects.experience_mult = 1.5
+            quest.effects.damage_mult = 0.8
     }
 
     player.damage = int(f32(player.damage) * quest.effects.damage_mult)
