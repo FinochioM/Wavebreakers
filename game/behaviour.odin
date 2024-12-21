@@ -241,6 +241,11 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
 	for &en in gs.entities {
 		if en.kind == .player {
 			add_experience(gs, &en, EXPERIENCE_PER_ENEMY)
+
+			if gs.active_skill != nil{
+			     skill_exp := int(math.floor(f32(EXPERIENCE_PER_ENEMY) * 0.5))
+			     add_skill_experience(gs, skill_exp)
+			}
 			break
 		}
 	}

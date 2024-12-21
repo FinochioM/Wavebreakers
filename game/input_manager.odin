@@ -15,9 +15,11 @@ Input_State_Flags :: enum {
 Input_State :: struct {
 	keys:      [MAX_KEYCODES]bit_set[Input_State_Flags],
 	mouse_pos: Vector2,
+	prev_mouse_pos: Vector2,
 }
 
 reset_input_state_for_next_frame :: proc(state: ^Input_State) {
+	state.prev_mouse_pos = state.mouse_pos
 	for &set in state.keys {
 		set -= {.just_pressed, .just_released, .repeat}
 	}

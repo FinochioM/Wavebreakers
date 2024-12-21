@@ -33,6 +33,7 @@ Game_State_Kind :: enum {
 	PAUSED,
 	SHOP,
 	GAME_OVER,
+	SKILLS,
 }
 
 Game_State :: struct {
@@ -54,6 +55,9 @@ Game_State :: struct {
 	active_enemies:       int,
 	wave_config:          Wave_Config,
 	current_wave_difficulty: f32,
+    skills: [Skill_Kind]Skill,
+    active_skill: Maybe(Skill_Kind),
+    skills_scroll_offset: f32
 }
 
 Enemy_Target :: struct {

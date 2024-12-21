@@ -10,6 +10,13 @@ PAUSE_MENU_SPACING :: 20.0
 WAVE_BUTTON_WIDTH :: 200.0
 WAVE_BUTTON_HEIGHT :: 50.0
 
+SKILLS_BUTTON_WIDTH :: 150.0
+SKILLS_BUTTON_HEIGHT :: 40.0
+SKILLS_PANEL_WIDTH :: 400.0
+SKILLS_PANEL_HEIGHT :: 600.0
+SKILL_ENTRY_HEIGHT :: 60.0
+SKILL_ENTRY_PADDING :: 10.0
+
 draw_menu :: proc(gs: ^Game_State) {
 	play_button := make_centered_button(0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
 
@@ -226,4 +233,179 @@ make_centered_button :: proc(
 		text_scale = 2.0,
 		color = color,
 	}
+}
+
+draw_skills_button :: proc(gs: ^Game_State){
+    button_pos := v2{600, 500}
+
+    if gs.state_kind != .PLAYING do return
+
+    player := find_player(gs)
+    if player == nil do return
+
+    has_unlocked_skills := false
+    for skill in gs.skills {
+        if skill.unlocked{
+            has_unlocked_skills = true
+            break
+        }
+    }
+
+    if !has_unlocked_skills do return
+
+    button := Button{
+        bounds = aabb_make_with_pos(
+            button_pos,
+            v2{SKILLS_BUTTON_WIDTH, SKILLS_BUTTON_HEIGHT},
+            .center_center,
+        ),
+        text = "Skills",
+        text_scale = 1.5,
+        color = v4{0.4, 0.2, 0.6, 1.0},
+    }
+
+    if draw_button(button){
+        gs.state_kind = .SKILLS
+    }
+}
+
+draw_skills_menu :: proc(gs: ^Game_State) {
+    panel_pos := v2{0, 0}
+    panel_bounds := AABB{
+        panel_pos.x - SKILLS_PANEL_WIDTH * 0.5,
+        panel_pos.y - SKILLS_PANEL_HEIGHT * 0.5,
+        panel_pos.x + SKILLS_PANEL_WIDTH * 0.5,
+        panel_pos.y + SKILLS_PANEL_HEIGHT * 0.5,
+    }
+
+    draw_rect_aabb(
+        v2{panel_bounds.x, panel_bounds.y},
+        v2{SKILLS_PANEL_WIDTH, SKILLS_PANEL_HEIGHT},
+        col = v4{0.2, 0.2, 0.2, 0.9},
+    )
+
+    title_pos := v2{panel_bounds.x + 20, panel_bounds.w + 20}
+    draw_text(title_pos, "Skills", scale = 2.5)
+
+    unlocked_skills: [dynamic]Skill
+    unlocked_skills.allocator = context.temp_allocator
+
+    for kind in Skill_Kind {
+        if gs.skills[kind].unlocked {
+            append(&unlocked_skills, gs.skills[kind])
+        }
+    }
+
+    content_start_y := panel_bounds.w - 100
+    visible_height := panel_bounds.w - panel_bounds.y - 120
+    total_content_height := f32(len(unlocked_skills)) * (SKILL_ENTRY_HEIGHT + SKILL_ENTRY_PADDING)
+
+    scroll_speed :: 50.0
+    if key_down(app_state.input_state, .LEFT_MOUSE) {
+        mouse_delta := app_state.input_state.mouse_pos.y - app_state.input_state.prev_mouse_pos.y
+        gs.skills_scroll_offset += mouse_delta * scroll_speed * sims_per_second
+    }
+
+    max_scroll := max(0, total_content_height - visible_height)
+    gs.skills_scroll_offset = clamp(gs.skills_scroll_offset, 0, max_scroll)
+
+    content_top := panel_bounds.w - 100
+    content_bottom := panel_bounds.y + 50
+
+    for skill, i in unlocked_skills {
+        y_pos := content_start_y - f32(i) * (SKILL_ENTRY_HEIGHT + SKILL_ENTRY_PADDING) + gs.skills_scroll_offset
+
+        if y_pos < content_bottom || y_pos > content_top {
+            continue
+        }
+
+        entry_bounds := AABB{
+            panel_bounds.x + 10,
+            y_pos,
+            panel_bounds.z - 30,
+            y_pos + SKILL_ENTRY_HEIGHT,
+        }
+
+        is_active := gs.active_skill != nil && gs.active_skill.? == skill.kind
+        bg_color := is_active ? v4{0.4, 0.3, 0.6, 0.8} : v4{0.3, 0.3, 0.3, 0.8}
+
+        draw_rect_aabb(
+            v2{entry_bounds.x, entry_bounds.y},
+            v2{entry_bounds.z - entry_bounds.x, entry_bounds.w - entry_bounds.y},
+            col = bg_color,
+        )
+
+        text_pos := v2{entry_bounds.x + 10, entry_bounds.y + 10}
+        draw_text(
+            text_pos,
+            fmt.tprintf("%v (Level %d)", skill.kind, skill.level),
+            scale = 1.5,
+        )
+
+        progress := get_skill_progress(skill)
+        progress_width := (entry_bounds.z - entry_bounds.x - 20) * progress
+        progress_bounds := AABB{
+            entry_bounds.x + 10,
+            entry_bounds.y + SKILL_ENTRY_HEIGHT - 15,
+            entry_bounds.x + 10 + progress_width,
+            entry_bounds.y + SKILL_ENTRY_HEIGHT - 5,
+        }
+
+        draw_rect_aabb(
+            v2{entry_bounds.x + 10, entry_bounds.y + SKILL_ENTRY_HEIGHT - 15},
+            v2{entry_bounds.z - entry_bounds.x - 20, 10},
+            col = v4{0.2, 0.2, 0.2, 1.0},
+        )
+
+        draw_rect_aabb(
+            v2{progress_bounds.x, progress_bounds.y},
+            v2{progress_bounds.z - progress_bounds.x, progress_bounds.w - progress_bounds.y},
+            col = v4{0.3, 0.8, 0.3, 1.0},
+        )
+
+        mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+        if aabb_contains(entry_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+            if gs.active_skill != nil && gs.active_skill.? == skill.kind {
+                gs.active_skill = nil
+            } else {
+                gs.active_skill = skill.kind
+            }
+        }
+    }
+
+    if total_content_height > visible_height {
+        scrollbar_bounds := AABB{
+            panel_bounds.z - 20,
+            panel_bounds.y + 100,
+            panel_bounds.z - 10,
+            panel_bounds.w - 20,
+        }
+
+        scroll_height := scrollbar_bounds.w - scrollbar_bounds.y
+        thumb_height := (visible_height / total_content_height) * scroll_height
+        thumb_pos := scrollbar_bounds.y + (gs.skills_scroll_offset / max_scroll) * (scroll_height - thumb_height)
+
+        draw_rect_aabb(
+            v2{scrollbar_bounds.x, scrollbar_bounds.y},
+            v2{scrollbar_bounds.z - scrollbar_bounds.x, scrollbar_bounds.w - scrollbar_bounds.y},
+            col = v4{0.3, 0.3, 0.3, 0.8},
+        )
+
+        draw_rect_aabb(
+            v2{scrollbar_bounds.x, thumb_pos},
+            v2{scrollbar_bounds.z - scrollbar_bounds.x, thumb_height},
+            col = v4{0.5, 0.5, 0.5, 1.0},
+        )
+    }
+
+    back_button := make_centered_button(
+        panel_bounds.y + 25,
+        PAUSE_MENU_BUTTON_WIDTH,
+        PAUSE_MENU_BUTTON_HEIGHT,
+        "Back",
+    )
+
+    if draw_button(back_button) {
+        gs.state_kind = .PLAYING
+    }
 }
