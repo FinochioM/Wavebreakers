@@ -34,6 +34,7 @@ Game_State_Kind :: enum {
 	SHOP,
 	GAME_OVER,
 	SKILLS,
+	QUESTS,
 }
 
 Game_State :: struct {
@@ -57,7 +58,9 @@ Game_State :: struct {
 	current_wave_difficulty: f32,
     skills: [Skill_Kind]Skill,
     active_skill: Maybe(Skill_Kind),
-    skills_scroll_offset: f32
+    skills_scroll_offset: f32,
+    quests: map[Quest_Kind]Quest,
+    active_quest: Maybe(Quest_Kind),
 }
 
 Enemy_Target :: struct {
@@ -153,4 +156,59 @@ Skill :: struct {
     level: int,
     experience: int,
     unlocked: bool
+}
+
+Quest_Category :: enum {
+    Combat_Flow,
+    Resource_Management,
+    Strategic,
+}
+
+Quest_Kind :: enum {
+    Time_Dilation,
+    Chain_Reaction,
+    Energy_Field,
+    Projectile_Master,
+    Critical_Cascade,
+
+    Gold_Fever,
+    Experience_Flow,
+    Blood_Ritual,
+    Fortune_Seeker,
+    Risk_Reward,
+
+    Priority_Target,
+    Sniper_Protocol,
+    Crowd_Suppression,
+    Elemental_Rotation,
+    Defensive_Matrix,
+}
+
+Quest_State :: enum{
+    Locked,
+    Available,
+    Purchased,
+    Active,
+}
+
+Quest :: struct {
+    kind: Quest_Kind,
+    state: Quest_State,
+    progress: int,
+    max_progress: int,
+    effects: struct {
+        damage_mult: f32,
+        attack_speed_mult: f32,
+        currency_mult: f32,
+        health_mult: f32,
+        experience_mult: f32,
+    },
+}
+
+Quest_Info :: struct {
+    kind: Quest_Kind,
+    category: Quest_Category,
+    unlock_level: int,
+    base_cost: int,
+    description: string,
 }

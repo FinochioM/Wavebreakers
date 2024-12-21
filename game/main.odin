@@ -214,6 +214,7 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
     gs.floating_texts.allocator = context.allocator
     gs.wave_config = init_wave_config()
     init_skills(gs)
+    init_quests(gs)
 	load_map_into_tiles(gs.tiles[:])
 }
 
@@ -419,6 +420,24 @@ handle_input :: proc(gs: ^Game_State) {
 		if key_just_pressed(app_state.input_state, .ESCAPE) {
 			gs.state_kind = .PAUSED
 		}
+
+		if key_just_pressed(app_state.input_state, .L){
+            player := find_player(gs)
+            if player != nil {
+                for i in 0..<5 {
+                    player.level += 1
+                    gs.available_points += 1
+                }
+                check_quest_unlocks(gs, player)
+
+                spawn_floating_text(
+                    gs,
+                    player.pos,
+                    "DEBUG: Added 5 levels!",
+                    v4{1, 1, 0, 1},
+                )
+            }
+		}
 	case .PAUSED:
 		if key_just_pressed(app_state.input_state, .ESCAPE) {
 			gs.state_kind = .PLAYING
@@ -452,7 +471,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 	defer gs.tick_index += 1
 
 	#partial switch gs.state_kind {
-	case .PLAYING, .SKILLS:
+	case .PLAYING, .SKILLS, .QUESTS:
 	    i := 0
 	    for i < len(gs.floating_texts){
 	       text := &gs.floating_texts[i]
@@ -638,6 +657,8 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
         draw_wave_button(gs)
         draw_skills_button(gs)
+        draw_shop_button(gs)
+        draw_quest_button(gs)
 
 	    for text in gs.floating_texts{
 	       text_alpha := text.lifetime / text.max_lifetime
@@ -667,6 +688,62 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 		draw_shop_menu(gs)
 	case .GAME_OVER:
 	   draw_game_over_screen(gs)
+    case .QUESTS:
+        for en in gs.entities {
+            if en.kind == .player {
+                player = en
+                break
+            }
+        }
+
+        draw_tiles(gs, player)
+
+        for en in gs.entities {
+            #partial switch en.kind {
+            case .player:
+                draw_player(en)
+            case .enemy, .player_projectile:
+                render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
+                if en.kind == .enemy {
+                    draw_enemy_at_pos(en, render_pos)
+                } else if en.kind == .player_projectile {
+                    draw_player_projectile_at_pos(en, render_pos)
+                }
+            }
+        }
+
+        for &en in gs.entities {
+            if en.kind == .player {
+                ui_base_pos := v2{-1000, 600}
+
+                level_text := fmt.tprintf("Current Level: %d", en.level)
+                draw_text(ui_base_pos, level_text, scale = 2.0)
+
+                if gs.available_points > 0 {
+                    points_text := fmt.tprintf("Available Points: %d", gs.available_points)
+                    draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
+                }
+
+                currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+                draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+
+                health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
+                draw_text(ui_base_pos + v2{0, -150}, health_text, scale = 2.0)
+                break
+            }
+        }
+
+        draw_skills_button(gs)
+        draw_quest_button(gs)
+
+        for text in gs.floating_texts {
+            text_alpha := text.lifetime / text.max_lifetime
+            color := text.color
+            color.w = text_alpha
+            draw_text(text.pos, text.text, scale = 1.5, color = color)
+        }
+
+        draw_quest_menu(gs)
     case .SKILLS:
         for en in gs.entities {
             if en.kind == .player {
@@ -715,9 +792,6 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
                 break
             }
         }
-
-        draw_wave_button(gs)
-        draw_skills_button(gs)
 
         for text in gs.floating_texts {
             text_alpha := text.lifetime / text.max_lifetime
@@ -1125,4 +1199,232 @@ get_skill_progress :: proc(skill: Skill) -> f32{
 
     exp_needed := calculate_skill_experience_requirement(skill.level)
     return f32(skill.experience) / f32(exp_needed)
+}
+
+//
+// : Quest
+
+QUEST_INFO := map[Quest_Kind]Quest_Info{
+    .Time_Dilation = {
+        category = .Combat_Flow,
+        unlock_level = 5,
+        base_cost = 1000,
+        description = "Successful hits create a local time slow effect around hit enemies",
+    },
+    .Chain_Reaction = {
+        category = .Combat_Flow,
+        unlock_level = 10,
+        base_cost = 2000,
+        description = "Enemies have a chance to explode on death",
+    },
+    .Energy_Field = {
+        category = .Combat_Flow,
+        unlock_level = 15,
+        base_cost = 3000,
+        description = "Build up charge with each hit, release automatically as an AOE pulse when full",
+    },
+    .Projectile_Master = {
+        category = .Combat_Flow,
+        unlock_level = 20,
+        base_cost = 4000,
+        description = "Every Nth shot splits into multiple projectiles",
+    },
+    .Critical_Cascade = {
+        category = .Combat_Flow,
+        unlock_level = 25,
+        base_cost = 5000,
+        description = "Critical hits have a chance to instantly reload and fire another shot",
+    },
+
+    .Gold_Fever = {
+        category = .Resource_Management,
+        unlock_level = 7,
+        base_cost = 1500,
+        description = "Enemies drop more currency but take less damage",
+    },
+    .Experience_Flow = {
+        category = .Resource_Management,
+        unlock_level = 12,
+        base_cost = 2500,
+        description = "Higher XP gain but reduced attack speed",
+    },
+    .Blood_Ritual = {
+        category = .Resource_Management,
+        unlock_level = 17,
+        base_cost = 3500,
+        description = "Much higher damage but costs health to shoot",
+    },
+    .Fortune_Seeker = {
+        category = .Resource_Management,
+        unlock_level = 22,
+        base_cost = 4500,
+        description = "Enemies have a chance to drop double rewards but have more health",
+    },
+    .Risk_Reward = {
+        category = .Resource_Management,
+        unlock_level = 27,
+        base_cost = 5500,
+        description = "Lower health pool but significantly increased damage",
+    },
+
+    .Priority_Target = {
+        category = .Strategic,
+        unlock_level = 9,
+        base_cost = 1800,
+        description = "Bonus damage to the closest enemy",
+    },
+    .Sniper_Protocol = {
+        category = .Strategic,
+        unlock_level = 14,
+        base_cost = 2800,
+        description = "Increased damage to distant enemies but reduced close-range damage",
+    },
+    .Crowd_Suppression = {
+        category = .Strategic,
+        unlock_level = 19,
+        base_cost = 3800,
+        description = "Damage increases based on number of enemies on screen",
+    },
+    .Elemental_Rotation = {
+        category = .Strategic,
+        unlock_level = 24,
+        base_cost = 4800,
+        description = "Shots cycle between different effects (freeze, burn, shock)",
+    },
+    .Defensive_Matrix = {
+        category = .Strategic,
+        unlock_level = 29,
+        base_cost = 5800,
+        description = "Create a damage-absorbing shield that converts damage to attack speed",
+    },
+}
+
+init_quests :: proc(gs: ^Game_State){
+    gs.quests = make(map[Quest_Kind]Quest)
+
+    for kind, info in QUEST_INFO{
+        gs.quests[kind] = Quest{
+            kind = kind,
+            state = .Locked,
+            progress = 0,
+            max_progress = 100,
+            effects = {
+                damage_mult = 1.0,
+                attack_speed_mult = 1.0,
+                currency_mult = 1.0,
+                health_mult = 1.0,
+                experience_mult = 1.0,
+            },
+        }
+    }
+}
+
+try_purchase_quest :: proc(gs: ^Game_State, kind: Quest_Kind) -> bool{
+    quest := &gs.quests[kind]
+    info := QUEST_INFO[kind]
+
+    if quest.state != .Available do return false
+    if gs.currency_points < info.base_cost do return false
+
+    gs.currency_points -= info.base_cost
+    quest.state = .Purchased
+
+    spawn_floating_text(gs, player_pos(gs),
+        fmt.tprintf("Quest Purchased: %v!", kind),
+        v4{0.8, 0.3, 0.8, 1.0})
+
+    return true
+}
+
+check_quest_unlocks :: proc(gs: ^Game_State, player: ^Entity) {
+    if player == nil do return
+
+    for kind, info in QUEST_INFO {
+        quest := &gs.quests[kind]
+        if quest.state == .Locked && player.level >= info.unlock_level {
+            quest.state = .Available
+            spawn_floating_text(gs, player.pos,
+                fmt.tprintf("New Quest Available: %v!", kind),
+                v4{0.3, 0.8, 0.3, 1.0})
+        }
+    }
+}
+
+activate_quest :: proc(gs: ^Game_State, kind: Quest_Kind) -> bool {
+    if gs.active_quest != nil {
+        current_quest := &gs.quests[gs.active_quest.?]
+        current_quest.state = .Purchased
+        remove_quest_effects(gs, current_quest)
+    }
+
+    quest := &gs.quests[kind]
+    if quest.state != .Purchased do return false
+
+    quest.state = .Active
+    gs.active_quest = kind
+    apply_quest_effects(gs, quest)
+
+    return true
+}
+
+deactivate_quest :: proc(gs: ^Game_State) {
+    if gs.active_quest == nil do return
+
+    quest := &gs.quests[gs.active_quest.?]
+    quest.state = .Purchased
+    remove_quest_effects(gs, quest)
+    gs.active_quest = nil
+}
+
+apply_quest_effects :: proc(gs: ^Game_State, quest: ^Quest) {
+    player := find_player(gs)
+    if player == nil do return
+
+    #partial switch quest.kind {
+        case .Gold_Fever:
+            quest.effects.currency_mult = 2.0
+            quest.effects.damage_mult = 0.7
+
+        case .Experience_Flow:
+            quest.effects.experience_mult = 2.0
+            quest.effects.attack_speed_mult = 0.7
+
+        case .Blood_Ritual:
+            quest.effects.damage_mult = 2.0
+            quest.effects.health_mult = 0.7
+
+        case .Risk_Reward:
+            quest.effects.damage_mult = 2.0
+            quest.effects.health_mult = 0.5
+
+        // Add effects for other quests here
+    }
+
+    player.damage = int(f32(player.damage) * quest.effects.damage_mult)
+    player.attack_speed *= quest.effects.attack_speed_mult
+    player.max_health = int(f32(player.max_health) * quest.effects.health_mult)
+    player.health = min(player.health, player.max_health)
+}
+
+remove_quest_effects :: proc(gs: ^Game_State, quest: ^Quest) {
+    player := find_player(gs)
+    if player == nil do return
+
+    player.damage = int(f32(player.damage) / quest.effects.damage_mult)
+    player.attack_speed /= quest.effects.attack_speed_mult
+    player.max_health = int(f32(player.max_health) / quest.effects.health_mult)
+    player.health = min(player.health, player.max_health)
+
+    quest.effects = {
+        damage_mult = 1.0,
+        attack_speed_mult = 1.0,
+        currency_mult = 1.0,
+        health_mult = 1.0,
+        experience_mult = 1.0,
+    }
+}
+
+player_pos :: proc(gs: ^Game_State) -> Vector2 {
+    player := find_player(gs)
+    return player != nil ? player.pos : Vector2{}
 }

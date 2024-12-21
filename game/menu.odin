@@ -17,6 +17,13 @@ SKILLS_PANEL_HEIGHT :: 600.0
 SKILL_ENTRY_HEIGHT :: 60.0
 SKILL_ENTRY_PADDING :: 10.0
 
+QUEST_BUTTON_WIDTH :: 150.0
+QUEST_BUTTON_HEIGHT :: 40.0
+QUEST_PANEL_WIDTH :: 800.0
+QUEST_PANEL_HEIGHT :: 600.0
+QUEST_ENTRY_HEIGHT :: 80.0
+QUEST_ENTRY_PADDING :: 10.0
+
 draw_menu :: proc(gs: ^Game_State) {
 	play_button := make_centered_button(0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
 
@@ -40,16 +47,8 @@ draw_pause_menu :: proc(gs: ^Game_State) {
 		"Resume",
 	)
 
-
-	shop_button := make_centered_button(
-		0,
-		PAUSE_MENU_BUTTON_WIDTH,
-		PAUSE_MENU_BUTTON_HEIGHT,
-		"Shop",
-	)
-
 	menu_button := make_centered_button(
-		-(PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT),
+		-(PAUSE_MENU_SPACING),
 		PAUSE_MENU_BUTTON_WIDTH,
 		PAUSE_MENU_BUTTON_HEIGHT,
 		"Main Menu",
@@ -61,10 +60,6 @@ draw_pause_menu :: proc(gs: ^Game_State) {
 
 	if draw_button(menu_button) {
 		gs.state_kind = .MENU
-	}
-
-	if draw_button(shop_button) {
-		gs.state_kind = .SHOP
 	}
 }
 
@@ -147,7 +142,7 @@ draw_game_over_screen :: proc(gs: ^Game_State){
 }
 
 draw_wave_button :: proc(gs: ^Game_State){
-    button_pos := v2{0, 500}
+    button_pos := v2{0, -250}
 
     #partial switch gs.wave_status {
         case .WAITING:
@@ -253,19 +248,66 @@ draw_skills_button :: proc(gs: ^Game_State){
 
     if !has_unlocked_skills do return
 
-    button := Button{
-        bounds = aabb_make_with_pos(
-            button_pos,
-            v2{SKILLS_BUTTON_WIDTH, SKILLS_BUTTON_HEIGHT},
-            .center_center,
-        ),
-        text = "Skills",
-        text_scale = 1.5,
-        color = v4{0.4, 0.2, 0.6, 1.0},
-    }
+	button := make_centered_button(
+		600,
+		SKILLS_BUTTON_WIDTH,
+		SKILLS_BUTTON_HEIGHT,
+		"Skills",
+		x_offset = 	SKILLS_BUTTON_WIDTH + PAUSE_MENU_SPACING,
+		color = v4{0.6, 0.4, 0.2, 1.0},
+	)
 
     if draw_button(button){
         gs.state_kind = .SKILLS
+    }
+}
+
+draw_shop_button :: proc(gs: ^Game_State){
+	shop_button := make_centered_button(
+		600,
+		SKILLS_BUTTON_WIDTH,
+		SKILLS_BUTTON_HEIGHT,
+		"Shop",
+		x_offset = 0,
+		color = v4{0.6, 0.4, 0.2, 1.0},
+	)
+
+	if draw_button(shop_button) {
+		gs.state_kind = .SHOP
+	}
+}
+
+draw_quest_button :: proc(gs: ^Game_State) {
+    if gs.state_kind != .PLAYING do return
+    player := find_player(gs)
+    if player == nil do return
+
+    has_available_quests := false
+    for _, quest in gs.quests {
+        if quest.state != .Locked {
+            has_available_quests = true
+            break
+        }
+    }
+
+    // Set color based on availability using regular if statement
+    button_color := v4{0.4, 0.4, 0.4, 0.5} // Default grayed out
+    if has_available_quests {
+        button_color = v4{0.6, 0.4, 0.2, 1.0} // Normal color when available
+    }
+
+    quest_button := make_centered_button(
+        600,
+        QUEST_BUTTON_WIDTH,
+        QUEST_BUTTON_HEIGHT,
+        "Quests",
+        x_offset = -(QUEST_BUTTON_WIDTH + PAUSE_MENU_SPACING),
+        color = button_color,
+    )
+
+    // Only allow clicking if quests are available
+    if draw_button(quest_button) && has_available_quests {
+        gs.state_kind = .QUESTS
     }
 }
 
@@ -407,5 +449,118 @@ draw_skills_menu :: proc(gs: ^Game_State) {
 
     if draw_button(back_button) {
         gs.state_kind = .PLAYING
+    }
+}
+
+draw_quest_menu :: proc(gs: ^Game_State) {
+    panel_pos := v2{0, 0}
+    panel_bounds := AABB{
+        panel_pos.x - QUEST_PANEL_WIDTH * 0.5,
+        panel_pos.y - QUEST_PANEL_HEIGHT * 0.5,
+        panel_pos.x + QUEST_PANEL_WIDTH * 0.5,
+        panel_pos.y + QUEST_PANEL_HEIGHT * 0.5,
+    }
+
+    draw_rect_aabb(
+        v2{panel_bounds.x, panel_bounds.y},
+        v2{QUEST_PANEL_WIDTH, QUEST_PANEL_HEIGHT},
+        col = v4{0.2, 0.2, 0.2, 0.9},
+    )
+
+    title_pos := v2{panel_bounds.x + 20, panel_bounds.w - 50}
+    draw_text(title_pos, "Quests", scale = 2.5)
+
+    currency_pos := v2{panel_bounds.z - 250, panel_bounds.w - 50}
+    draw_text(currency_pos, fmt.tprintf("Currency: %d", gs.currency_points), scale = 2.0)
+
+    start_y := panel_bounds.w - 100
+    category_spacing := 30.0
+
+    for category in Quest_Category {
+        category_pos := v2{panel_bounds.x + 20, start_y}
+        draw_text(category_pos, fmt.tprintf("-- %v --", category), scale = 2.0)
+        start_y -= f32(category_spacing)
+
+        for kind, info in QUEST_INFO {
+            if info.category != category do continue
+
+            quest := gs.quests[kind]
+            if quest.state == .Locked do continue
+
+            y_pos := start_y
+            entry_bounds := AABB{
+                panel_bounds.x + 10,
+                y_pos,
+                panel_bounds.z - 10,
+                y_pos + QUEST_ENTRY_HEIGHT,
+            }
+
+            bg_color := get_quest_background_color(quest)
+            draw_rect_aabb(
+                v2{entry_bounds.x, entry_bounds.y},
+                v2{entry_bounds.z - entry_bounds.x, entry_bounds.w - entry_bounds.y},
+                col = bg_color,
+            )
+
+            text_pos := v2{entry_bounds.x + 10, entry_bounds.y + 10}
+            text_color := quest.state == .Available ? v4{0.7, 0.7, 0.7, 1.0} : COLOR_WHITE
+            draw_text(text_pos, fmt.tprintf("%v", kind), scale = 1.5, color = text_color)
+
+            desc_pos := v2{entry_bounds.x + 10, entry_bounds.y + 35}
+            draw_text(desc_pos, info.description, scale = 1.2, color = v4{0.7, 0.7, 0.7, 1.0})
+
+            status_pos := v2{entry_bounds.z - 150, entry_bounds.y + 10}
+            if quest.state == .Available {
+                draw_text(status_pos, fmt.tprintf("Cost: %d", info.base_cost), scale = 1.2)
+            } else if quest.state == .Active {
+                draw_text(status_pos, "Active", scale = 1.2, color = v4{0.3, 0.8, 0.3, 1.0})
+            }
+
+            // Handle clicks
+            mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+            if aabb_contains(entry_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+                handle_quest_click(gs, kind)
+            }
+
+            start_y -= QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+        }
+        start_y -= f32(category_spacing)
+    }
+
+    back_button := make_centered_button(
+        panel_bounds.y + 30,
+        PAUSE_MENU_BUTTON_WIDTH,
+        PAUSE_MENU_BUTTON_HEIGHT,
+        "Back",
+    )
+
+    if draw_button(back_button) {
+        gs.state_kind = .PLAYING
+    }
+}
+
+get_quest_background_color :: proc(quest: Quest) -> Vector4 {
+    #partial switch quest.state {
+        case .Available:
+            return v4{0.3, 0.3, 0.3, 0.8}
+        case .Purchased:
+            return v4{0.4, 0.4, 0.3, 0.8}
+        case .Active:
+            return v4{0.4, 0.5, 0.3, 0.8}
+        case:
+            return v4{0.2, 0.2, 0.2, 0.8}
+    }
+}
+
+handle_quest_click :: proc(gs: ^Game_State, kind: Quest_Kind) {
+    quest := &gs.quests[kind]
+
+    #partial switch quest.state {
+        case .Available:
+            try_purchase_quest(gs, kind)
+        case .Purchased:
+            activate_quest(gs, kind)
+        case .Active:
+            deactivate_quest(gs)
     }
 }
