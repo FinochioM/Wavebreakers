@@ -413,6 +413,9 @@ handle_input :: proc(gs: ^Game_State) {
 					setup_player(e)
 				}
 
+				init_skills(gs)
+				init_quests(gs)
+
 				gs.state_kind = .PLAYING
 			}
 		}
