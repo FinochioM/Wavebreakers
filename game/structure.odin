@@ -8,8 +8,7 @@ Button :: struct {
 }
 
 Tile :: struct {
-	type:       u8,
-	debug_tile: bool,
+    color: Vector4,
 }
 
 Wave_Status :: enum{

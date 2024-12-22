@@ -308,7 +308,7 @@ draw_skills_button :: proc(gs: ^Game_State){
 		SKILLS_BUTTON_HEIGHT,
 		"Skills",
 		x_offset = 	SKILLS_BUTTON_WIDTH + PAUSE_MENU_SPACING,
-		color = v4{0.6, 0.4, 0.2, 1.0},
+		color = v4{0.5, 0.1, 0.8, 1.0}
 	)
 
     if draw_button(button){
@@ -323,7 +323,7 @@ draw_shop_button :: proc(gs: ^Game_State){
 		SKILLS_BUTTON_HEIGHT,
 		"Shop",
 		x_offset = 0,
-		color = v4{0.6, 0.4, 0.2, 1.0},
+		color = v4{0.5, 0.1, 0.8, 1.0},
 	)
 
 	if draw_button(shop_button) {
@@ -346,7 +346,7 @@ draw_quest_button :: proc(gs: ^Game_State) {
 
     button_color := v4{0.4, 0.4, 0.4, 0.5}
     if has_available_quests {
-        button_color = v4{0.6, 0.4, 0.2, 1.0}
+        button_color = v4{0.5, 0.1, 0.8, 1.0}
     }
 
     quest_button := make_centered_button(

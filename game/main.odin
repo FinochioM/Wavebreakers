@@ -103,7 +103,6 @@ get_tiles_in_box_radius :: proc(world_pos: Vector2, box_radius: Vector2i) -> []T
 // :tile load
 load_map_into_tiles :: proc(tiles: []Tile) {
 	png_data, succ := os.read_entire_file("./res/map.png")
-	assert(succ, "map.png not found")
 
 	width, height, channels: i32
 	img_data: [^]byte = stbi.load_from_memory(
@@ -115,38 +114,18 @@ load_map_into_tiles :: proc(tiles: []Tile) {
 		4,
 	)
 
-    assert(width == WORLD_W, "Map width doesn't match expected width")
-    assert(height == WORLD_H, "Map height doesn't match expected height")
-    assert(img_data != nil, "Failed to load map image data")
-    assert(len(tiles) >= WORLD_W * WORLD_H, "Tiles array too small for map data")
-
-
 	for x in 0 ..< WORLD_W {
 		for y in 0 ..< WORLD_H {
-
 			index := (x + y * WORLD_W) * 4
 			pixel: []u8 = img_data[index:index + 4]
 
-			r := pixel[0]
-			g := pixel[1]
-			b := pixel[2]
-			a := pixel[3]
-
-			t := &tiles[x + y * WORLD_W]
-
-			if r == 65 && g == 128 && b == 62 {
-				t.type = 1
-			} else if r == 65 && g == 110 && b == 107 {
-				t.type = 2
-			} else if r == 87 && g == 79 && b == 51 {
-				t.type = 3
-			} else if r == 110 && g == 100 && b == 65 {
-				t.type = 4
-			} else if r == 117 && g == 107 && b == 69 {
-				t.type = 5
-			} else {
-				t.type = 0
-			}
+            t := &tiles[x + y * WORLD_W]
+            t.color = {
+                f32(pixel[0]) / 255.0,
+                f32(pixel[1]) / 255.0,
+                f32(pixel[2]) / 255.0,
+                f32(pixel[3]) / 255.0,
+            }
 		}
 	}
 
@@ -191,24 +170,13 @@ draw_tiles :: proc(gs: ^Game_State, player: Entity) {
 			tile_pos_world := tile_pos_to_world_pos(tile_pos)
 			tile := gs.tiles[x + y * WORLD_W]
 
-			if tile.type != 0 {
-				col := COLOR_WHITE
-
-				switch tile.type {
-				case 1:
-					col = v4{0.255, 0.502, 0.243, 1.0}
-				case 2:
-					col = v4{0.255, 0.431, 0.42, 1.0}
-				case 3:
-					col = v4{0.341, 0.31, 0.2, 1.0}
-				case 4:
-					col = v4{0.431, 0.392, 0.255, 1.0}
-				case 5:
-					col = v4{0.459, 0.431, 0.267, 1.0}
-				}
-
-				draw_rect_aabb(tile_pos_world, v2{TILE_LENGTH, TILE_LENGTH}, col = col)
-			}
+            if tile.color.w > 0{
+                draw_rect_aabb(
+                    tile_pos_world,
+                    v2{TILE_LENGTH, TILE_LENGTH},
+                    col = tile.color,
+                )
+            }
 		}
 	}
 }
@@ -312,7 +280,7 @@ setup_player :: proc(e: ^Entity) {
 	e.kind = .player
 	e.flags |= {.allocated}
 
-	e.pos = v2{-900, -500}
+	e.pos = v2{-900, -550}
 
     if app_state.game.active_quest != nil && app_state.game.active_quest.? == .Risk_Reward {
         current_health := e.health
@@ -443,7 +411,7 @@ handle_input :: proc(gs: ^Game_State) {
 
 				gs.wave_number = 0
 				gs.enemies_to_spawn = 0
-				gs.currency_points = 0
+				gs.currency_points = 10000
 				gs.player_level = 0
 				gs.player_experience = 0
 

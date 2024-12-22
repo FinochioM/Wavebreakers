@@ -571,7 +571,7 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
                 spawn_position + SPAWN_MARGIN * 1.2,
             )
 
-            setup_enemy(enemy, v2{spawn_x, -500}, gs.current_wave_difficulty)
+            setup_enemy(enemy, v2{spawn_x, -550}, gs.current_wave_difficulty)
             gs.active_enemies += 1
         }
 
