@@ -283,6 +283,22 @@ setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: 
 }
 
 when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
+    if enemy.enemy_type == 10{
+        spawn_floating_text(
+            gs,
+            enemy.pos,
+            "First Boss Defeated",
+            v4{1, 0.5, 0, 1},
+        )
+
+        spawn_floating_text(
+            gs,
+            enemy.pos + v2{0, 50},
+            "New Enemy Type Unlocked",
+            v4{0,1,0,1},
+        )
+    }
+
     enemies_to_destroy := 0
 
     if gs.active_quest != nil && gs.active_quest.? == .Chain_Reaction {
@@ -317,7 +333,7 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
         }
     }
 
-    add_currency_points(gs, POINTS_PER_ENEMY)
+    add_currency_points(gs, enemy.value)
     gs.active_enemies -= (1 + enemies_to_destroy)
 
     actual_active_enemies := 0
@@ -508,7 +524,10 @@ init_wave :: proc(gs: ^Game_State, wave_number: int) {
 	gs.wave_status = .WAITING
 }
 
-calculate_wave_enemies := proc(wave_number: int, config: Wave_Config) -> int {
+calculate_wave_enemies :: proc(wave_number: int, config: Wave_Config) -> int {
+    if wave_number % 10 == 0{
+        return 1
+    }
     enemy_count := config.base_enemy_count + (wave_number - 1) * config.enemy_count_increase
     return min(enemy_count, config.max_enemy_count)
 }
@@ -536,6 +555,8 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
         gs.wave_status = .COMPLETED
         return
     }
+
+    is_boss_wave := gs.wave_number % 10 == 0
 
     gs.wave_spawn_timer -= f32(delta_t)
     if gs.wave_spawn_timer <= 0 && gs.enemies_to_spawn > 0 {

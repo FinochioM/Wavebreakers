@@ -15,8 +15,9 @@ import stbtt "vendor:stb/truetype"
 Image_Id :: enum {
 	nil,
 	player,
-	enemy,
 	player_projectile,
+	enemy1_10,
+	boss10,
 }
 
 Image :: struct {
@@ -32,7 +33,7 @@ image_count: int
 init_images :: proc() {
 	using fmt
 
-	img_dir := "A:/Desarrollos/1WeekGame/res/images/"
+	img_dir := "./res/images/"
 
 	highest_id := 0
 	for img_name, id in Image_Id {
@@ -212,7 +213,7 @@ init_fonts :: proc() {
 
 	bitmap, _ := mem.alloc(font_bitmap_w * font_bitmap_h)
 	font_height := 15 // for some reason this only bakes properly at 15 ? it's a 16px font dou...
-	path := "A:/Desarrollos/1WeekGame/res/fonts/alagard.ttf"
+	path := "./res/fonts/alagard.ttf"
 	ttf_data, err := os.read_entire_file(path)
 	assert(ttf_data != nil, "failed to read font")
 

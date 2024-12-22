@@ -102,7 +102,7 @@ get_tiles_in_box_radius :: proc(world_pos: Vector2, box_radius: Vector2i) -> []T
 
 // :tile load
 load_map_into_tiles :: proc(tiles: []Tile) {
-	png_data, succ := os.read_entire_file("A:/Desarrollos/1WeekGame/res/map.png")
+	png_data, succ := os.read_entire_file("./res/map.png")
 	assert(succ, "map.png not found")
 
 	width, height, channels: i32
@@ -265,6 +265,9 @@ DODGE_CHANCE_PER_LEVEL :: 0.03
 FOV_RANGE_BONUS_PER_LEVEL :: 50.0
 HEALTH_REGEN_PER_LEVEL :: 0.9
 
+FIRST_BOSS_WAVE :: 10
+BOSS_STATS_MULTIPLIER :: 5.0
+
 handle_to_entity :: proc(gs: ^Game_State, handle: Entity_Handle) -> ^Entity {
 	for &en in gs.entities {
 		if (.allocated in en.flags) && en.id == handle {
@@ -333,6 +336,9 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 	e.kind = .enemy
 	e.flags |= {.allocated}
 
+	is_boss_wave := app_state.game.wave_number % 10 == 0
+	is_first_boss := app_state.game.wave_number == FIRST_BOSS_WAVE
+
 	base_health := 15
 	base_damage := 5
 	base_speed := 100.0
@@ -344,6 +350,20 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 	damage_mult := 1.0 + (config.damage_scale * wave_num)
 	speed_mult := 1.0 + (config.speed_scale * wave_num)
 
+	if is_boss_wave {
+	   health_mult *= BOSS_STATS_MULTIPLIER
+	   damage_mult *= BOSS_STATS_MULTIPLIER
+	   speed_mult *= 0.5
+
+	   if is_first_boss {
+	       e.enemy_type = 10
+	       e.value = 50
+	   }
+	}else{
+	   e.enemy_type = 1
+	   e.value = 1
+	}
+
 	e.pos = pos
 	e.prev_pos = pos
     e.health = int(f32(base_health) * health_mult * difficulty)
@@ -352,8 +372,6 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 	e.damage = int(f32(base_damage) * damage_mult * difficulty)
 	e.state = .moving
 	e.speed = f32(base_speed) * speed_mult
-	e.value = 10
-	e.enemy_type = 1
 }
 
 calculate_exp_for_level :: proc(level: int) -> int {
@@ -401,7 +419,7 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 //
 // :sim
 
-FOV_RANGE :: 1000.0 // Range in which the player can detect enemies
+FOV_RANGE :: 1200.0 // Range in which the player can detect enemies
 
 handle_input :: proc(gs: ^Game_State) {
 	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
@@ -425,7 +443,7 @@ handle_input :: proc(gs: ^Game_State) {
 
 				gs.wave_number = 0
 				gs.enemies_to_spawn = 0
-				gs.currency_points = 100000
+				gs.currency_points = 0
 				gs.player_level = 0
 				gs.player_experience = 0
 
@@ -582,7 +600,8 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 						if !(.allocated in target.flags) do continue
 
 						dist := linalg.length(target.pos - en.pos)
-						if dist <= 100.0 {
+						collision_radius := target.enemy_type == 10 ? 200.0 : 100
+						if auto_cast dist <= collision_radius {
 							when_projectile_hits_enemy(gs, &en, &target)
 							entity_destroy(gs, &en)
 							break
@@ -838,16 +857,25 @@ draw_player :: proc(en: Entity) {
 	img := Image_Id.player
 
 	xform := Matrix4(1)
-	xform *= xform_scale(v2{3, 3})
+	xform *= xform_scale(v2{4, 4})
 
 	draw_sprite(en.pos, img, pivot = .bottom_center, xform = xform)
 }
 
 draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
-	img := Image_Id.enemy
+	img := Image_Id.enemy1_10
+
+	if en.enemy_type == 10{
+	   img = .boss10
+	}
 
 	xform := Matrix4(1)
-	xform *= xform_scale(v2{3, 3})
+
+	if en.enemy_type == 10{
+	   xform *= xform_scale(v2{5,5})
+	}else{
+	   xform *= xform_scale(v2{4, 4})
+	}
 
 	draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }
@@ -860,7 +888,7 @@ draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
 
     xform := Matrix4(1)
     xform *= xform_rotate(final_angle)
-    xform *= xform_scale(v2{3,3})
+    xform *= xform_scale(v2{4,4})
 
     draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }
