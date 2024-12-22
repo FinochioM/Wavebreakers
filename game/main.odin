@@ -672,6 +672,9 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 				health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
 				draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
+
+				enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
+                draw_text(ui_base_pos + v2{0, -150}, enemies_remaining_text, scale = 2.0)
 				break
 			}
 		}
@@ -737,14 +740,19 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
             if en.kind == .player {
                 ui_base_pos := v2{-1000, 600}
 
-                level_text := fmt.tprintf("Current Level: %d", en.level)
-                draw_text(ui_base_pos, level_text, scale = 2.0)
+                exp_needed := calculate_exp_for_level(en.level)
+                current_exp := en.experience
+				level_text := fmt.tprintf("Current Level: %d - (%d/%d)", en.level, current_exp,  exp_needed)
+				draw_text(ui_base_pos, level_text, scale = 2.0)
 
                 currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-                draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+                draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
 
                 health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
-                draw_text(ui_base_pos + v2{0, -150}, health_text, scale = 2.0)
+                draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
+
+                enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
+                draw_text(ui_base_pos + v2{0, -150}, enemies_remaining_text, scale = 2.0)
                 break
             }
         }
@@ -789,14 +797,19 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
             if en.kind == .player {
                 ui_base_pos := v2{-1000, 600}
 
-                level_text := fmt.tprintf("Current Level: %d", en.level)
-                draw_text(ui_base_pos, level_text, scale = 2.0)
+                exp_needed := calculate_exp_for_level(en.level)
+                current_exp := en.experience
+				level_text := fmt.tprintf("Current Level: %d - (%d/%d)", en.level, current_exp,  exp_needed)
+				draw_text(ui_base_pos, level_text, scale = 2.0)
 
                 currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
                 draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
 
                 health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
                 draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
+
+                enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
+                draw_text(ui_base_pos + v2{0, -150}, enemies_remaining_text, scale = 2.0)
 
                 stats_pos := v2{600, 600}
                 draw_debug_stats(&en, stats_pos)
