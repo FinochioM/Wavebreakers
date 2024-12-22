@@ -49,7 +49,6 @@ Game_State :: struct {
 	wave_spawn_timer:     f32,
 	wave_spawn_rate:      f32,
 	enemies_to_spawn:     int,
-	available_points:     int, // Experience
 	currency_points:      int, // Currency
 	floating_texts:       [dynamic]Floating_Text,
 	wave_status:          Wave_Status,
@@ -61,6 +60,7 @@ Game_State :: struct {
     skills_scroll_offset: f32,
     quests: map[Quest_Kind]Quest,
     active_quest: Maybe(Quest_Kind),
+    quest_scroll_offset: f32,
 }
 
 Enemy_Target :: struct {
@@ -122,6 +122,16 @@ Entity :: struct {
 	},
 	health_regen_timer: f32,
 	current_fov_range:  f32,
+	energy_field_charge: int,
+	current_element: Element_Kind,
+	chain_reaction_range: f32,
+}
+
+Element_Kind :: enum{
+    None,
+    Fire, // damage over time
+    Ice, // slows enemies
+    Lightning, // chain damage to nearby enemies
 }
 
 Wave_Config :: struct {

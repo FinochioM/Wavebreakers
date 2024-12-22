@@ -471,26 +471,69 @@ draw_quest_menu :: proc(gs: ^Game_State) {
     currency_pos := v2{panel_bounds.z - 250, panel_bounds.w - 50}
     draw_text(currency_pos, fmt.tprintf("Currency: %d", gs.currency_points), scale = 2.0)
 
-    start_y := panel_bounds.w - 100
-    category_spacing := 30.0
+    content_start_y := panel_bounds.w - 100
+    visible_height := panel_bounds.w - panel_bounds.y - 120
+
+    total_content_height: f32 = 0
+    for category in Quest_Category {
+        total_content_height += 30.0
+        quest_count := 0
+        for kind, info in QUEST_INFO {
+            if info.category == category {
+                quest := gs.quests[kind]
+                if quest.state != .Locked {
+                    total_content_height += QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+                    quest_count += 1
+                }
+            }
+        }
+        if quest_count > 0 {
+            total_content_height += 30.0
+        }
+    }
+
+    scroll_speed :: 50.0
+    if key_down(app_state.input_state, .LEFT_MOUSE) {
+        mouse_delta := app_state.input_state.mouse_pos.y - app_state.input_state.prev_mouse_pos.y
+        gs.quest_scroll_offset += mouse_delta * scroll_speed * sims_per_second
+    }
+
+    max_scroll := max(0, total_content_height - visible_height)
+    gs.quest_scroll_offset = clamp(gs.quest_scroll_offset, 0, max_scroll)
+
+    content_top := panel_bounds.w - 100
+    content_bottom := panel_bounds.y + 50
+
+    current_y := content_start_y + gs.quest_scroll_offset
 
     for category in Quest_Category {
-        category_pos := v2{panel_bounds.x + 20, start_y}
-        draw_text(category_pos, fmt.tprintf("-- %v --", category), scale = 2.0)
-        start_y -= f32(category_spacing)
+        if current_y < content_bottom || current_y > content_top {
+            current_y -= 30.0 // Skip category header space
+        } else {
+            category_pos := v2{panel_bounds.x + 20, current_y}
+            draw_text(category_pos, fmt.tprintf("-- %v --", category), scale = 2.0)
+            current_y -= 30.0
+        }
 
+        category_has_quests := false
         for kind, info in QUEST_INFO {
             if info.category != category do continue
 
             quest := gs.quests[kind]
             if quest.state == .Locked do continue
 
-            y_pos := start_y
+            category_has_quests = true
+
+            if current_y - QUEST_ENTRY_HEIGHT < content_bottom || current_y > content_top {
+                current_y -= QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+                continue
+            }
+
             entry_bounds := AABB{
                 panel_bounds.x + 10,
-                y_pos,
-                panel_bounds.z - 10,
-                y_pos + QUEST_ENTRY_HEIGHT,
+                current_y - QUEST_ENTRY_HEIGHT,
+                panel_bounds.z - 30,
+                current_y,
             }
 
             bg_color := get_quest_background_color(quest)
@@ -514,19 +557,46 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 draw_text(status_pos, "Active", scale = 1.2, color = v4{0.3, 0.8, 0.3, 1.0})
             }
 
-            // Handle clicks
             mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
             if aabb_contains(entry_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
                 handle_quest_click(gs, kind)
             }
 
-            start_y -= QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+            current_y -= QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
         }
-        start_y -= f32(category_spacing)
+
+        if category_has_quests {
+            current_y -= 30.0
+        }
+    }
+
+    if total_content_height > visible_height {
+        scrollbar_bounds := AABB{
+            panel_bounds.z - 20,
+            panel_bounds.y + 100,
+            panel_bounds.z - 10,
+            panel_bounds.w - 20,
+        }
+
+        scroll_height := scrollbar_bounds.w - scrollbar_bounds.y
+        thumb_height := (visible_height / total_content_height) * scroll_height
+        thumb_pos := scrollbar_bounds.y + (gs.quest_scroll_offset / max_scroll) * (scroll_height - thumb_height)
+
+        draw_rect_aabb(
+            v2{scrollbar_bounds.x, scrollbar_bounds.y},
+            v2{scrollbar_bounds.z - scrollbar_bounds.x, scrollbar_bounds.w - scrollbar_bounds.y},
+            col = v4{0.3, 0.3, 0.3, 0.8},
+        )
+
+        draw_rect_aabb(
+            v2{scrollbar_bounds.x, thumb_pos},
+            v2{scrollbar_bounds.z - scrollbar_bounds.x, thumb_height},
+            col = v4{0.5, 0.5, 0.5, 1.0},
+        )
     }
 
     back_button := make_centered_button(
-        panel_bounds.y + 30,
+        panel_bounds.y + 25,
         PAUSE_MENU_BUTTON_WIDTH,
         PAUSE_MENU_BUTTON_HEIGHT,
         "Back",

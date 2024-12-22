@@ -221,7 +221,7 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 //
 // :ENTITY
 
-EXPERIENCE_PER_LEVEL :: 100
+EXPERIENCE_PER_LEVEL :: 100 // Might add something here to not have a fixed amount.
 EXPERIENCE_PER_ENEMY :: 3
 POINTS_PER_ENEMY :: 1
 
@@ -253,7 +253,7 @@ ARMOR_BONUS_PER_LEVEL :: 0.1
 LIFE_STEAL_PER_LEVEL :: 0.05
 EXP_GAIN_BONUS_PER_LEVEL :: 0.1
 CRIT_CHANCE_PER_LEVEL :: 0.05
-CRIT_DAMAGE_PER_LEVEL :: 0.2
+CRIT_DAMAGE_PER_LEVEL :: 0.1
 MULTISHOT_CHANCE_PER_LEVEL :: 0.1
 DODGE_CHANCE_PER_LEVEL :: 0.03
 FOV_RANGE_BONUS_PER_LEVEL :: 50.0
@@ -305,12 +305,19 @@ setup_player :: proc(e: ^Entity) {
 
 	e.pos = v2{-900, -500}
 
-	e.health = 100
-	e.max_health = 100
-	e.damage = 10
+    if app_state.game.active_quest != nil && app_state.game.active_quest.? == .Risk_Reward {
+        current_health := e.health
+        current_damage := e.damage
+        e.health = current_health / 2 // half of the current health of the player
+        e.max_health = e.max_health / 2 // half of the starting max health
+        e.damage = current_damage * 2
+    }else{
+	   e.health = 100
+	   e.max_health = 100
+	   e.damage = 10
+    }
 	e.attack_speed = 1.0
 	e.attack_timer = 0.0
-
 	e.upgrade_levels = {}
 	e.health_regen_timer = 0
 	e.current_fov_range = FOV_RANGE
@@ -344,26 +351,41 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 }
 
 calculate_exp_for_level :: proc(level: int) -> int {
-	return EXPERIENCE_PER_LEVEL * level
+	return int(EXPERIENCE_PER_LEVEL * math.pow(1.2, f32(level - 1)))
 }
 
 add_experience :: proc(gs: ^Game_State, player: ^Entity, exp_amount: int) {
-    exp_text := fmt.tprintf("+%d exp", exp_amount)
+    multiplier := 1.0
+
+    if gs.active_quest != nil {
+        quest := &gs.quests[gs.active_quest.?]
+        multiplier = f64(quest.effects.experience_mult)
+    }
+
+    final_exp := int(f32(exp_amount) * f32(multiplier))
+    fmt.println(final_exp)
+    exp_text := fmt.tprintf("+%d exp", final_exp)
     spawn_floating_text(gs, player.pos, exp_text, v4{0.3, 0.8, 0.3,1.0})
 
-	player.experience += exp_amount
+	player.experience += final_exp
 	exp_needed := calculate_exp_for_level(player.level)
 
 	for player.experience >= exp_needed {
 		player.experience -= exp_needed
 		player.level += 1
-		gs.available_points += 1
 		exp_needed = calculate_exp_for_level(player.level)
 	}
 }
 
 add_currency_points :: proc(gs: ^Game_State, points: int) {
-	gs.currency_points += points
+	multiplier := 1.0
+
+    if gs.active_quest != nil{
+        quest := &gs.quests[gs.active_quest.?]
+        multiplier = f64(quest.effects.currency_mult)
+    }
+
+	gs.currency_points += int(f32(points) * f32(multiplier))
 }
 
 //
@@ -397,7 +419,6 @@ handle_input :: proc(gs: ^Game_State) {
 
 				gs.wave_number = 0
 				gs.enemies_to_spawn = 0
-				gs.available_points = 0
 				gs.currency_points = 100000
 				gs.player_level = 0
 				gs.player_experience = 0
@@ -429,7 +450,6 @@ handle_input :: proc(gs: ^Game_State) {
             if player != nil {
                 for i in 0..<5 {
                     player.level += 1
-                    gs.available_points += 1
                 }
                 check_quest_unlocks(gs, player)
 
@@ -475,6 +495,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 
 	#partial switch gs.state_kind {
 	case .PLAYING, .SKILLS, .QUESTS:
+	    update_quest_progress(gs)
 	    i := 0
 	    for i < len(gs.floating_texts){
 	       text := &gs.floating_texts[i]
@@ -528,7 +549,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 					closest_enemy := targets[0].entity
 					projectile := entity_create(gs)
 					if projectile != nil {
-						setup_projectile(projectile, en.pos, closest_enemy.pos)
+						setup_projectile(gs, projectile, en.pos, closest_enemy.pos)
 					}
 					en.attack_timer = 1.0 / en.attack_speed
 				}
@@ -641,19 +662,16 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 			if en.kind == .player {
 				ui_base_pos := v2{-1000, 600}
 
-				level_text := fmt.tprintf("Current Level: %d", en.level)
+                exp_needed := calculate_exp_for_level(en.level)
+                current_exp := en.experience
+				level_text := fmt.tprintf("Current Level: %d - (%d/%d)", en.level, current_exp,  exp_needed)
 				draw_text(ui_base_pos, level_text, scale = 2.0)
 
-				if gs.available_points > 0 {
-					points_text := fmt.tprintf("Available Points: %d", gs.available_points)
-					draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
-				}
-
 				currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-				draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+				draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
 
 				health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
-				draw_text(ui_base_pos + v2{0, -150}, health_text, scale = 2.0)
+				draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
 				break
 			}
 		}
@@ -722,11 +740,6 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
                 level_text := fmt.tprintf("Current Level: %d", en.level)
                 draw_text(ui_base_pos, level_text, scale = 2.0)
 
-                if gs.available_points > 0 {
-                    points_text := fmt.tprintf("Available Points: %d", gs.available_points)
-                    draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
-                }
-
                 currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
                 draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
 
@@ -779,16 +792,11 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
                 level_text := fmt.tprintf("Current Level: %d", en.level)
                 draw_text(ui_base_pos, level_text, scale = 2.0)
 
-                if gs.available_points > 0 {
-                    points_text := fmt.tprintf("Available Points: %d", gs.available_points)
-                    draw_text(ui_base_pos + v2{0, -50}, points_text, scale = 2.0)
-                }
-
                 currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-                draw_text(ui_base_pos + v2{0, -100}, currency_text, scale = 2.0)
+                draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
 
                 health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
-                draw_text(ui_base_pos + v2{0, -150}, health_text, scale = 2.0)
+                draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
 
                 stats_pos := v2{600, 600}
                 draw_debug_stats(&en, stats_pos)
@@ -1362,8 +1370,21 @@ activate_quest :: proc(gs: ^Game_State, kind: Quest_Kind) -> bool {
 
     quest.state = .Active
     gs.active_quest = kind
-    apply_quest_effects(gs, quest)
 
+    if kind == .Elemental_Rotation{
+        player := find_player(gs)
+        if player != nil{
+            player.current_element = .Fire
+            spawn_floating_text(
+                gs,
+                player.pos,
+                "Elemental Rotation Active: Starting With Fire!",
+                v4{1, 0.5, 0, 1}
+            )
+        }
+    }
+
+    apply_quest_effects(gs, quest)
     return true
 }
 
@@ -1395,7 +1416,7 @@ apply_quest_effects :: proc(gs: ^Game_State, quest: ^Quest) {
             quest.effects.health_mult = 0.5
         case .Time_Dilation:
             quest.effects.attack_speed_mult = 0.8
-            quest.effects.damage_mult = 1.5
+            quest.effects.damage_mult = 1.1
         case .Chain_Reaction:
             // Chain reaction is handled in when_enemy_dies
             quest.effects.damage_mult = 1.2

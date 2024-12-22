@@ -6,6 +6,19 @@ import "core:math/rand"
 import "core:math"
 import "core:fmt"
 
+CHAIN_REACTION_RANGE :: 200.0
+CHAIN_REACTION_DAMAGE_MULT :: 0.5
+
+ENERGY_FIELD_MAX_CHARGE :: 100
+ENERGY_FIELD_CHARGE_PER_HIT :: 10
+ENERGY_FIELD_RANGE :: 300.0
+ENERGY_FIELD_DAMAGE_MULT :: 2.0
+
+PROJECTILE_MASTER_SHOT_COUNT :: 3
+PROJECTILE_MASTER_ANGLE_SPREAD :: 15.0
+
+CRITICAL_CASCADE_RELOAD_CHANCE :: 0.5
+
 spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color := COLOR_WHITE){
     text_copy := strings.clone(text, context.allocator)
     append(&gs.floating_texts, Floating_Text{
@@ -21,6 +34,10 @@ spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color :
 ENEMY_ATTACK_RANGE :: 100.0
 ENEMY_ATTACK_COOLDOWN :: 2.0
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+	if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation{
+	   en.speed = min(en.speed * (1 + delta_t), 100.0) //slow down and gradually recover the speed
+	}
+
 	// Find player entity
 	if en.target == nil {
 		for &potential_target in gs.entities {
@@ -168,7 +185,7 @@ calculate_intercept_point :: proc(
 	return predicted_pos, time
 }
 
-setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2, is_multishot := false) {
+setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: Vector2, is_multishot := false) {
 	e.kind = .player_projectile
 	e.flags |= {.allocated}
 
@@ -177,7 +194,7 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2, is_multi
 	e.pos = spawn_position
 	e.prev_pos = spawn_position
 
-	player := find_player(&app_state.game)
+	player := find_player(gs)
 
     if player != nil && !is_multishot {
         multishot_level := player.upgrade_levels.multishot
@@ -189,11 +206,39 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2, is_multi
                 if extra_projectile != nil {
                     angle_offset := rand.float32_range(-0.2, 0.2)
                     modified_target := target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
-                    setup_projectile(extra_projectile, pos, modified_target, true)
+                    setup_projectile(gs, extra_projectile, pos, modified_target, true)
                 }
             }
         }
     }
+
+    if !is_multishot && gs.active_quest != nil && gs.active_quest.? == .Projectile_Master {
+            base_angle := math.atan2(target_pos.y - pos.y, target_pos.x - pos.x)
+            shot_distance := linalg.length(target_pos - pos)
+
+            for i in 1..<PROJECTILE_MASTER_SHOT_COUNT {
+                extra_projectile := entity_create(gs)
+                if extra_projectile != nil {
+                    angle_offset := f32(i) * PROJECTILE_MASTER_ANGLE_SPREAD * math.PI / 180.0
+
+                    modified_target := pos + Vector2{
+                        math.cos(base_angle + angle_offset),
+                        math.sin(base_angle + angle_offset),
+                    } * shot_distance
+
+                    setup_projectile(gs, extra_projectile, pos, modified_target, true)
+
+                    extra_projectile = entity_create(gs)
+                    if extra_projectile != nil {
+                        modified_target = pos + Vector2{
+                            math.cos(base_angle - angle_offset),
+                            math.sin(base_angle - angle_offset),
+                        } * shot_distance
+                        setup_projectile(gs, extra_projectile, pos, modified_target, true)
+                    }
+                }
+            }
+        }
 
     accuracy_level := player != nil ? player.upgrade_levels.accuracy : 0
 
@@ -238,59 +283,194 @@ setup_projectile :: proc(e: ^Entity, pos: Vector2, target_pos: Vector2, is_multi
 }
 
 when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
-	for &en in gs.entities {
-		if en.kind == .player {
-			add_experience(gs, &en, EXPERIENCE_PER_ENEMY)
+    enemies_to_destroy := 0
 
-			if gs.active_skill != nil{
-			     skill_exp := int(math.floor(f32(EXPERIENCE_PER_ENEMY) * 0.5))
-			     add_skill_experience(gs, skill_exp)
-			}
-			break
-		}
-	}
+    if gs.active_quest != nil && gs.active_quest.? == .Chain_Reaction {
+        targets := find_enemies_in_range(gs, enemy.pos, CHAIN_REACTION_RANGE)
 
-	add_currency_points(gs, POINTS_PER_ENEMY)
-	gs.active_enemies -= 1
+        if len(targets) > 0 {
+            explosion_damage := int(f32(enemy.max_health) * CHAIN_REACTION_DAMAGE_MULT)
 
-	if gs.active_enemies == 0 && gs.enemies_to_spawn == 0{
-	   gs.wave_status = .COMPLETED
-	}
+            entities_to_destroy: [dynamic]^Entity
+            entities_to_destroy.allocator = context.temp_allocator
+
+            for target in targets {
+                if target.entity == enemy do continue
+                target.entity.health -= explosion_damage
+
+                spawn_floating_text(
+                    gs,
+                    target.entity.pos,
+                    fmt.tprintf("%d", explosion_damage),
+                    v4{1, 0.5, 0, 1},
+                )
+
+                if target.entity.health <= 0 {
+                    append(&entities_to_destroy, target.entity)
+                    enemies_to_destroy += 1
+                }
+            }
+
+            for entity_to_destroy in entities_to_destroy {
+                entity_destroy(gs, entity_to_destroy)
+            }
+        }
+    }
+
+    add_currency_points(gs, POINTS_PER_ENEMY)
+    gs.active_enemies -= (1 + enemies_to_destroy)
+
+    actual_active_enemies := 0
+    for &en in gs.entities{
+        if en.kind == .enemy && .allocated in en.flags{
+            actual_active_enemies += 1
+        }
+    }
+
+    if actual_active_enemies != gs.active_enemies{
+        gs.active_enemies = actual_active_enemies
+    }
+
+    if gs.active_enemies <= 0 && gs.enemies_to_spawn <= 0 {
+        gs.wave_status = .COMPLETED
+    }
 }
 
 when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: ^Entity) {
-	player := find_player(gs)
-	if player == nil do return
+    player := find_player(gs)
+    if player == nil do return
 
-	total_damage := projectile.damage
-	crit_hit := false
+    if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation {
+        enemy.speed *= 0.5
+    }
 
-	crit_chance := f32(player.upgrade_levels.crit_chance) * CRIT_CHANCE_PER_LEVEL
-	if rand.float32() < crit_chance {
-	    crit_hit = true
-		crit_multiplier := 1.5 + (f32(player.upgrade_levels.crit_damage) * CRIT_DAMAGE_PER_LEVEL)
-		total_damage = int(f32(total_damage) * crit_multiplier)
-	}
+    if gs.active_quest != nil && gs.active_quest.? == .Energy_Field {
+        player.energy_field_charge += ENERGY_FIELD_CHARGE_PER_HIT
 
-	life_steal_amount :=
-		f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
-	if life_steal_amount > 0 {
-		heal_player(player, int(life_steal_amount))
-	}
+        if player.energy_field_charge >= ENERGY_FIELD_MAX_CHARGE {
+            targets := find_enemies_in_range(gs, player.pos, ENERGY_FIELD_RANGE)
+            pulse_damage := int(f32(player.damage) * ENERGY_FIELD_DAMAGE_MULT)
 
-	enemy.health -= total_damage
+            for target in targets {
+                target.entity.health -= pulse_damage
+                spawn_floating_text(
+                    gs,
+                    target.entity.pos,
+                    fmt.tprintf("%d", pulse_damage),
+                    v4{0, 0.7, 1, 1},
+                )
+
+                if target.entity.health <= 0 {
+                    when_enemy_dies(gs, target.entity)
+                    entity_destroy(gs, target.entity)
+                }
+            }
+
+            player.energy_field_charge = 0
+        }
+    }
+
+    if gs.active_quest != nil && gs.active_quest.? == .Elemental_Rotation{
+        apply_elemental_effects(gs, enemy, projectile.damage)
+    }
+
+    total_damage := projectile.damage
+    crit_hit := false
+
+    if gs.active_quest != nil && gs.active_quest.? == .Sniper_Protocol {
+        distance := linalg.length(enemy.pos - player.pos)
+        if distance > FOV_RANGE * 0.6 {
+            total_damage = int(f32(total_damage) * 1.5)
+            spawn_floating_text(gs, enemy.pos, "Long range bonus!", v4{0.8, 0.8, 0.2, 1})
+        } else if distance < FOV_RANGE * 0.3 {
+            total_damage = int(f32(total_damage) * 0.7)
+            spawn_floating_text(gs, enemy.pos, "Close range penalty!", v4{0.8, 0.2, 0.2, 1})
+        }
+    }
+
+    if gs.active_quest != nil && gs.active_quest.? == .Priority_Target {
+        targets := find_enemies_in_range(gs, player.pos, FOV_RANGE)
+        if len(targets) > 0 && targets[0].entity == enemy {
+            total_damage = int(f32(total_damage) * 1.5)
+            spawn_floating_text(gs, enemy.pos, "Priority target!", v4{1, 0.8, 0, 1})
+        }
+    }
+
+    if gs.active_quest != nil && gs.active_quest.? == .Crowd_Suppression {
+        targets := find_enemies_in_range(gs, player.pos, FOV_RANGE)
+        enemy_bonus := len(targets) * 10
+        if enemy_bonus > 0 {
+            total_damage = int(f32(total_damage) * (1.0 + f32(enemy_bonus)/100.0))
+            spawn_floating_text(
+                gs,
+                enemy.pos,
+                fmt.tprintf("Crowd bonus: +%d%%!", enemy_bonus),
+                v4{0.8, 0.5, 0.8, 1},
+            )
+        }
+    }
+
+    if gs.active_quest != nil && gs.active_quest.? == .Blood_Ritual {
+        health_cost := 5
+        if player.health > health_cost {
+            player.health -= health_cost
+            total_damage *= 2
+            spawn_floating_text(
+                gs,
+                player.pos,
+                fmt.tprintf("-%d HP", health_cost),
+                v4{0.8, 0, 0, 1},
+            )
+        }
+    }
+
+    crit_chance := f32(player.upgrade_levels.crit_chance) * CRIT_CHANCE_PER_LEVEL
+    if rand.float32() < crit_chance {
+        crit_hit = true
+        crit_multiplier := 1.5 + (f32(player.upgrade_levels.crit_damage) * CRIT_DAMAGE_PER_LEVEL)
+        total_damage = int(f32(total_damage) * crit_multiplier)
+    }
+
+    life_steal_amount := f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
+    if life_steal_amount > 0 && player.health < 100 {
+        heal_player(player, int(life_steal_amount))
+    }
+
+    enemy.health -= total_damage
+
+    if crit_hit && gs.active_quest != nil && gs.active_quest.? == .Critical_Cascade {
+        if rand.float32() < CRITICAL_CASCADE_RELOAD_CHANCE {
+            player.attack_timer = 0  // Instant reload
+            spawn_floating_text(
+                gs,
+                player.pos,
+                "Cascade Reload!",
+                v4{1, 1, 0, 1},
+            )
+        }
+    }
 
     text_color := crit_hit ? v4{1, 0, 0, 1} : COLOR_WHITE
     spawn_floating_text(gs, enemy.pos, fmt.tprintf("%d", total_damage), text_color)
 
-	if enemy.health <= 0 {
-		exp_multiplier := 1.0 + (f32(player.upgrade_levels.exp_gain) * EXP_GAIN_BONUS_PER_LEVEL)
-		exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
-		add_experience(gs, player, exp_amount)
+    if enemy.health <= 0 {
+        if gs.active_quest != nil && gs.active_quest.? == .Fortune_Seeker {
+            if rand.float32() < 0.35 {  // 35% chance
+                spawn_floating_text(gs, enemy.pos, "Double rewards!", v4{1, 0.8, 0, 1})
+                add_currency_points(gs, POINTS_PER_ENEMY)  // Add extra points
+                exp_multiplier := 1.0 + (f32(player.upgrade_levels.exp_gain) * EXP_GAIN_BONUS_PER_LEVEL)
+                exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
+                add_experience(gs, player, exp_amount)  // Add extra exp
+            }
+        }
 
-		when_enemy_dies(gs, enemy)
-		entity_destroy(gs, enemy)
-	}
+        exp_multiplier := 1.0 + (f32(player.upgrade_levels.exp_gain) * EXP_GAIN_BONUS_PER_LEVEL)
+        exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
+        add_experience(gs, player, exp_amount)
+
+        when_enemy_dies(gs, enemy)
+        entity_destroy(gs, enemy)
+    }
 }
 
 heal_player :: proc(player: ^Entity, amount: int) {
@@ -340,26 +520,106 @@ calculate_wave_difficulty :: proc(wave_number: int, config: Wave_Config) -> f32{
 
 process_wave :: proc(gs: ^Game_State, delta_t: f64) {
     if gs.wave_status != .IN_PROGRESS do return
-	if gs.enemies_to_spawn <= 0 do return
 
-	gs.wave_spawn_timer -= f32(delta_t)
-	if gs.wave_spawn_timer <= 0 {
-		enemy := entity_create(gs)
-		if enemy != nil {
-			map_width := f32(WORLD_W * TILE_LENGTH)
-			screen_half_width := map_width * 0.5
-			spawn_position := screen_half_width + SPAWN_MARGIN
+    actual_active_enemies := 0
+    for &en in gs.entities {
+        if en.kind == .enemy && .allocated in en.flags {
+            actual_active_enemies += 1
+        }
+    }
 
-			spawn_x := rand.float32_range(
-				rand.float32_range(spawn_position, spawn_position + SPAWN_MARGIN * 1.2),
-				spawn_position + SPAWN_MARGIN * 1.2,
-			)
+    if actual_active_enemies != gs.active_enemies {
+        gs.active_enemies = actual_active_enemies
+    }
 
-			setup_enemy(enemy, v2{spawn_x, -500}, gs.current_wave_difficulty)
-			gs.active_enemies += 1
-		}
+    if gs.enemies_to_spawn <= 0 && gs.active_enemies <= 0 {
+        gs.wave_status = .COMPLETED
+        return
+    }
 
-		gs.enemies_to_spawn -= 1
-		gs.wave_spawn_timer = gs.wave_spawn_rate
-	}
+    gs.wave_spawn_timer -= f32(delta_t)
+    if gs.wave_spawn_timer <= 0 && gs.enemies_to_spawn > 0 {
+        enemy := entity_create(gs)
+        if enemy != nil {
+            map_width := f32(WORLD_W * TILE_LENGTH)
+            screen_half_width := map_width * 0.5
+            spawn_position := screen_half_width + SPAWN_MARGIN
+
+            spawn_x := rand.float32_range(
+                rand.float32_range(spawn_position, spawn_position + SPAWN_MARGIN * 1.2),
+                spawn_position + SPAWN_MARGIN * 1.2,
+            )
+
+            setup_enemy(enemy, v2{spawn_x, -500}, gs.current_wave_difficulty)
+            gs.active_enemies += 1
+        }
+
+        gs.enemies_to_spawn -= 1
+        gs.wave_spawn_timer = gs.wave_spawn_rate
+    }
+}
+
+apply_elemental_effects :: proc(gs: ^Game_State, enemy: ^Entity, damage: int) {
+    if gs.active_quest != nil && gs.active_quest.? == .Elemental_Rotation {
+        player := find_player(gs)
+        if player == nil do return
+
+        #partial switch player.current_element {
+            case .Fire:
+                spawn_floating_text(
+                    gs,
+                    enemy.pos,
+                    "Burning!",
+                    v4{1, 0.5, 0, 1},
+                )
+                enemy.health -= damage / 4
+            case .Ice:
+                enemy.speed *= 0.5
+                spawn_floating_text(
+                    gs,
+                    enemy.pos,
+                    "Frozen!",
+                    v4{0.5, 0.5, 1, 1},
+                )
+            case .Lightning:
+                nearby := find_enemies_in_range(gs, enemy.pos, 150.0)
+                if len(nearby) > 1 {
+                    chain_target := nearby[1].entity
+                    chain_target.health -= damage / 2
+                    spawn_floating_text(
+                        gs,
+                        chain_target.pos,
+                        "Chain Lightning",
+                        v4{1, 1, 0, 1},
+                    )
+                }
+        }
+
+        player.current_element = Element_Kind((int(player.current_element) + 1) % len(Element_Kind))
+        next_element := "Fire"
+        if player.current_element == .Ice do next_element = "Ice"
+        if player.current_element == .Lightning do next_element = "Lightning"
+
+        spawn_floating_text(
+            gs,
+            player.pos,
+            fmt.tprintf("Next: %s", next_element),
+            v4{0.8, 0.8, 0.8, 1.0},
+        )
+    }
+}
+
+update_quest_progress :: proc(gs: ^Game_State) {
+    if gs.active_quest == nil do return
+
+    quest := &gs.quests[gs.active_quest.?]
+    player := find_player(gs)
+    if player == nil do return
+
+    #partial switch quest.kind {
+        case .Energy_Field:
+            quest.progress = player.energy_field_charge
+            quest.max_progress = ENERGY_FIELD_MAX_CHARGE
+        // Add other progress tracking as needed
+    }
 }
