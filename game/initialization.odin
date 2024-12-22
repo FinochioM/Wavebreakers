@@ -35,7 +35,9 @@ initialize :: proc "c" () {
 	)
 
 	index_buffer_count :: MAX_QUADS * 6
-	indices: [index_buffer_count]u16
+	indices := make([]u16, index_buffer_count)
+	defer delete(indices)
+
 	i := 0
 	for i < index_buffer_count {
 		indices[i + 0] = auto_cast ((i / 6) * 4 + 0)
@@ -46,9 +48,10 @@ initialize :: proc "c" () {
 		indices[i + 5] = auto_cast ((i / 6) * 4 + 3)
 		i += 6
 	}
-	app_state.bind.index_buffer = sg.make_buffer(
-		{type = .INDEXBUFFER, data = {ptr = &indices, size = size_of(indices)}},
-	)
+
+    app_state.bind.index_buffer = sg.make_buffer(
+        {type = .INDEXBUFFER, data = {ptr = raw_data(indices), size = size_of(u16) * len(indices)}},
+    )
 
 	app_state.bind.samplers[SMP_default_sampler] = sg.make_sampler({})
 

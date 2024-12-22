@@ -149,16 +149,10 @@ Wave_Config :: struct {
 Skill_Kind :: enum {
     damage,
     attack_speed,
-    accuracy,
     armor,
     life_steal,
-    exp_gain,
-    crit_chance,
     crit_damage,
-    multishot,
     health_regen,
-    dodge_chance,
-    fov_range,
 }
 
 Skill :: struct {

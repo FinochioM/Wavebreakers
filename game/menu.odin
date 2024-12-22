@@ -64,59 +64,113 @@ draw_pause_menu :: proc(gs: ^Game_State) {
 }
 
 draw_shop_menu :: proc(gs: ^Game_State) {
-	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+    draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-	title_pos := v2{-200, 300}
-	draw_text(title_pos, "Statistics", scale = 3.0)
+    panel_width := 1000.0
+    panel_height := 700.0
+    panel_x := -panel_width * 0.5
+    panel_y := -panel_height * 0.5
 
-	currency_pos := v2{-200, 250}
-	currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-	draw_text(currency_pos, currency_text, scale = 2.0)
+    draw_rect_aabb(
+        v2{auto_cast panel_x, auto_cast panel_y},
+        v2{auto_cast panel_width, auto_cast panel_height},
+        col = v4{0.1, 0.1, 0.1, 0.9},
+    )
 
-	y_start := 150.0
-	spacing := 80.0
-	column_spacing := 400.0
+    player := find_player(gs)
+    if player == nil do return
 
-	player := find_player(gs)
-	if player == nil do return
+    title_pos := v2{auto_cast panel_x + 50, auto_cast panel_y + auto_cast panel_height - 80}
+    draw_text(title_pos, "Shop", scale = 3.0)
 
-	column_count := 2
-	items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
+    currency_pos := v2{auto_cast panel_x + auto_cast panel_width - 300, auto_cast panel_y + auto_cast panel_height - 80}
+    currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+    draw_text(currency_pos, currency_text, scale = 2.0)
 
-	for upgrade, i in Upgrade_Kind {
-		column := i / items_per_column
-		row := i % items_per_column
+    column_count := 2
+    items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
 
-		level := get_upgrade_level(player, upgrade)
-		cost := calculate_upgrade_cost(level)
+    content_width := panel_width - 160
+    column_width := auto_cast content_width / auto_cast column_count
 
-		button_text := fmt.tprintf("%v (Level %d) - Cost: %d", upgrade, level, cost)
-		x_offset := f32(column) * auto_cast column_spacing - auto_cast column_spacing / 2
-		y_offset := f32(y_start) - f32(row) * auto_cast spacing
+    button_spacing_y := 100.0
 
-		button := make_centered_button(
-			y_offset,
-			PAUSE_MENU_BUTTON_WIDTH * 1.5,
-			PAUSE_MENU_BUTTON_HEIGHT,
-			button_text,
-			x_offset = x_offset,
-		)
+    total_height := f32(items_per_column) * auto_cast button_spacing_y
+    start_y := panel_y + panel_height - 150
 
-		if draw_button(button) {
-			try_purchase_upgrade(gs, player, upgrade)
-		}
-	}
+    for upgrade, i in Upgrade_Kind {
+        column := i / items_per_column
+        row := i % items_per_column
 
-	back_button := make_centered_button(
-		-350,
-		PAUSE_MENU_BUTTON_WIDTH,
-		PAUSE_MENU_BUTTON_HEIGHT,
-		"Back",
-	)
+        base_x := panel_x + 80 + (column_width * auto_cast column)
+        x_pos := base_x + (column_width - PAUSE_MENU_BUTTON_WIDTH) * 0.5
+        y_pos := start_y - auto_cast row * auto_cast button_spacing_y
 
-	if draw_button(back_button) {
-		gs.state_kind = .PLAYING
-	}
+        level := get_upgrade_level(player, upgrade)
+        cost := calculate_upgrade_cost(level)
+
+        button_text := fmt.tprintf("Cost: %d", cost)
+        button_color := v4{0.2, 0.3, 0.8, 1.0}
+        if level >= MAX_UPGRADE_LEVEL {
+            button_color = v4{0.4, 0.4, 0.4, 1.0}
+        } else if gs.currency_points < cost {
+            button_color = v4{0.5, 0.2, 0.2, 1.0}
+        }
+
+        button := Button{
+            bounds = {
+                auto_cast x_pos,
+                auto_cast y_pos - 10,
+                auto_cast x_pos + PAUSE_MENU_BUTTON_WIDTH,
+                auto_cast y_pos + PAUSE_MENU_BUTTON_HEIGHT - 10,
+            },
+            text = button_text,
+            text_scale = 2.0,
+            color = button_color,
+        }
+
+        if level < MAX_UPGRADE_LEVEL {
+            if draw_button(button) {
+                try_purchase_upgrade(gs, player, upgrade)
+            }
+        }
+    }
+
+    for upgrade, i in Upgrade_Kind {
+        column := i / items_per_column
+        row := i % items_per_column
+
+        base_x := panel_x + 80 + (column_width * auto_cast column)
+        x_pos := base_x + (column_width - PAUSE_MENU_BUTTON_WIDTH) * 0.5
+        y_pos := start_y - auto_cast row * auto_cast button_spacing_y
+
+        level := get_upgrade_level(player, upgrade)
+
+        name_pos := v2{auto_cast x_pos, auto_cast y_pos + 45}
+        upgrade_text := fmt.tprintf("%v (Level %d)", upgrade, level)
+        draw_text(name_pos, upgrade_text, scale = 1.5)
+
+        if level >= MAX_UPGRADE_LEVEL {
+            max_pos := v2{auto_cast x_pos + PAUSE_MENU_BUTTON_WIDTH + 10, auto_cast y_pos + 5}
+            draw_text(max_pos, "MAX", scale = 1.5, color = v4{1, 0.8, 0, 1})
+        }
+    }
+
+    back_button := Button{
+        bounds = {
+            auto_cast panel_x + auto_cast panel_width * 0.5 - PAUSE_MENU_BUTTON_WIDTH * 0.5,
+            auto_cast panel_y - 80,
+            auto_cast panel_x + auto_cast panel_width * 0.5 + PAUSE_MENU_BUTTON_WIDTH * 0.5,
+            auto_cast panel_y - 80 + PAUSE_MENU_BUTTON_HEIGHT,
+        },
+        text = "Back",
+        text_scale = 2.0,
+        color = v4{0.2, 0.3, 0.8, 1.0},
+    }
+
+    if draw_button(back_button) {
+        gs.state_kind = .PLAYING
+    }
 }
 
 draw_game_over_screen :: proc(gs: ^Game_State){

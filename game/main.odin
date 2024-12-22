@@ -115,6 +115,12 @@ load_map_into_tiles :: proc(tiles: []Tile) {
 		4,
 	)
 
+    assert(width == WORLD_W, "Map width doesn't match expected width")
+    assert(height == WORLD_H, "Map height doesn't match expected height")
+    assert(img_data != nil, "Failed to load map image data")
+    assert(len(tiles) >= WORLD_W * WORLD_H, "Tiles array too small for map data")
+
+
 	for x in 0 ..< WORLD_W {
 		for y in 0 ..< WORLD_H {
 
@@ -832,7 +838,7 @@ draw_player :: proc(en: Entity) {
 	img := Image_Id.player
 
 	xform := Matrix4(1)
-	xform *= xform_scale(v2{5, 5})
+	xform *= xform_scale(v2{3, 3})
 
 	draw_sprite(en.pos, img, pivot = .bottom_center, xform = xform)
 }
@@ -841,7 +847,7 @@ draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
 	img := Image_Id.enemy
 
 	xform := Matrix4(1)
-	xform *= xform_scale(v2{5, 5})
+	xform *= xform_scale(v2{3, 3})
 
 	draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }
@@ -854,7 +860,7 @@ draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
 
     xform := Matrix4(1)
     xform *= xform_rotate(final_angle)
-    xform *= xform_scale(v2{5,5})
+    xform *= xform_scale(v2{3,3})
 
     draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }
@@ -1086,8 +1092,10 @@ init_skills :: proc(gs: ^Game_State){
 
 check_skill_unlock :: proc(gs: ^Game_State, player: ^Entity) {
     if player == nil do return
+
     for kind in Skill_Kind {
         if gs.skills[kind].unlocked do continue
+
         #partial switch kind {
             case .damage:
                 if player.upgrade_levels.damage >= MAX_UPGRADE_LEVEL {
@@ -1096,11 +1104,6 @@ check_skill_unlock :: proc(gs: ^Game_State, player: ^Entity) {
                 }
             case .attack_speed:
                 if player.upgrade_levels.attack_speed >= MAX_UPGRADE_LEVEL {
-                    gs.skills[kind].unlocked = true
-                    spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
-                }
-            case .accuracy:
-                if player.upgrade_levels.accuracy >= MAX_UPGRADE_LEVEL {
                     gs.skills[kind].unlocked = true
                     spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
                 }
@@ -1114,38 +1117,13 @@ check_skill_unlock :: proc(gs: ^Game_State, player: ^Entity) {
                     gs.skills[kind].unlocked = true
                     spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
                 }
-            case .exp_gain:
-                if player.upgrade_levels.exp_gain >= MAX_UPGRADE_LEVEL {
-                    gs.skills[kind].unlocked = true
-                    spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
-                }
-            case .crit_chance:
-                if player.upgrade_levels.crit_chance >= MAX_UPGRADE_LEVEL {
-                    gs.skills[kind].unlocked = true
-                    spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
-                }
             case .crit_damage:
                 if player.upgrade_levels.crit_damage >= MAX_UPGRADE_LEVEL {
                     gs.skills[kind].unlocked = true
                     spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
                 }
-            case .multishot:
-                if player.upgrade_levels.multishot >= MAX_UPGRADE_LEVEL {
-                    gs.skills[kind].unlocked = true
-                    spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
-                }
             case .health_regen:
                 if player.upgrade_levels.health_regen >= MAX_UPGRADE_LEVEL {
-                    gs.skills[kind].unlocked = true
-                    spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
-                }
-            case .dodge_chance:
-                if player.upgrade_levels.dodge_chance >= MAX_UPGRADE_LEVEL {
-                    gs.skills[kind].unlocked = true
-                    spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
-                }
-            case .fov_range:
-                if player.upgrade_levels.fov_range >= MAX_UPGRADE_LEVEL {
                     gs.skills[kind].unlocked = true
                     spawn_floating_text(gs, player.pos, fmt.tprintf("%v skill unlocked!", kind), v4{0, 1, 0, 1})
                 }
@@ -1191,27 +1169,15 @@ apply_skill_bonus :: proc(gs: ^Game_State, kind: Skill_Kind) {
         player.damage = int(f32(player.damage) * (1 + bonus))
     case .attack_speed:
         player.attack_speed *= (1 + bonus)
-    case .accuracy:
-        // No direct modification needed - accuracy is calculated on projectile creation
     case .armor:
         player.max_health = int(f32(player.max_health) * (1 + bonus))
         player.health = player.max_health
     case .life_steal:
         // No direct modification needed - life steal is applied in combat
-    case .exp_gain:
-        // No direct modification needed - exp gain is calculated when receiving exp
-    case .crit_chance:
-        // No direct modification needed - crit is calculated in combat
     case .crit_damage:
         // No direct modification needed - crit damage is calculated in combat
-    case .multishot:
-        // No direct modification needed - multishot is calculated when firing
     case .health_regen:
         // No direct modification needed - health regen is calculated in update
-    case .dodge_chance:
-        // No direct modification needed - dodge is calculated in combat
-    case .fov_range:
-        player.current_fov_range = FOV_RANGE + (f32(skill.level) * FOV_RANGE_BONUS_PER_LEVEL)
     }
 }
 
