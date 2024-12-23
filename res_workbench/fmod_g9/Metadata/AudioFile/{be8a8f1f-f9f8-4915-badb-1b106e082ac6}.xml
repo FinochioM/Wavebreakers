@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.02.00">
+	<object class="AudioFile" id="{be8a8f1f-f9f8-4915-badb-1b106e082ac6}">
+		<property name="assetPath">
+			<value>beatz/ES_The Farmhouse - Silver Maple/ES_The Farmhouse.wav</value>
+		</property>
+		<property name="isStreaming">
+			<value>true</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>269.47541666666666</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{d73925e8-7e93-44eb-81f9-944ab908be20}</destination>
+		</relationship>
+	</object>
+</objects>

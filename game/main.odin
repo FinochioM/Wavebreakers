@@ -224,11 +224,11 @@ ATTACK_SPEED_BONUS_PER_LEVEL :: 0.1
 ACCURACY_BONUS_PER_LEVEL :: 0.1
 DAMAGE_BONUS_PER_LEVEL :: 0.15
 ARMOR_BONUS_PER_LEVEL :: 0.1
-LIFE_STEAL_PER_LEVEL :: 0.05
+LIFE_STEAL_PER_LEVEL :: 0.03
 EXP_GAIN_BONUS_PER_LEVEL :: 0.1
 CRIT_CHANCE_PER_LEVEL :: 0.05
 CRIT_DAMAGE_PER_LEVEL :: 0.1
-MULTISHOT_CHANCE_PER_LEVEL :: 0.1
+MULTISHOT_CHANCE_PER_LEVEL :: 0.075
 DODGE_CHANCE_PER_LEVEL :: 0.03
 FOV_RANGE_BONUS_PER_LEVEL :: 50.0
 HEALTH_REGEN_PER_LEVEL :: 0.9
@@ -366,6 +366,7 @@ add_experience :: proc(gs: ^Game_State, player: ^Entity, exp_amount: int) {
 		player.experience -= exp_needed
 		player.level += 1
 		exp_needed = calculate_exp_for_level(player.level)
+		check_quest_unlocks(gs,player)
 	}
 }
 
@@ -542,6 +543,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 					projectile := entity_create(gs)
 					if projectile != nil {
 						setup_projectile(gs, projectile, en.pos, closest_enemy.pos)
+						play_sound("shoot")
 					}
 					en.attack_timer = 1.0 / en.attack_speed
 				}

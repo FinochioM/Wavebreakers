@@ -124,6 +124,7 @@ Entity :: struct {
 	energy_field_charge: int,
 	current_element: Element_Kind,
 	chain_reaction_range: f32,
+	is_multishot: bool,
 }
 
 Element_Kind :: enum{

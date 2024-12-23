@@ -188,6 +188,7 @@ calculate_intercept_point :: proc(
 setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: Vector2, is_multishot := false) {
 	e.kind = .player_projectile
 	e.flags |= {.allocated}
+    e.is_multishot = is_multishot
 
 	player_height := 32.0 * 5.0
 	spawn_position := pos + v2{0, auto_cast player_height * 0.5}
@@ -207,6 +208,7 @@ setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: 
                     angle_offset := rand.float32_range(-0.2, 0.2)
                     modified_target := target_pos + Vector2{math.cos(angle_offset), math.sin(angle_offset)} * 50
                     setup_projectile(gs, extra_projectile, pos, modified_target, true)
+                    extra_projectile.damage = int(f32(extra_projectile.damage) * 0.5)
                 }
             }
         }
@@ -448,7 +450,11 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
     }
 
     life_steal_amount := f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
-    if life_steal_amount > 0 && player.health < 100 {
+    if projectile.is_multishot{
+        life_steal_amount *= 0.5
+    }
+
+    if life_steal_amount > 0 && player.health < player.max_health {
         heal_player(player, int(life_steal_amount))
     }
 
@@ -484,6 +490,10 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
         exp_amount := int(f32(EXPERIENCE_PER_ENEMY) * exp_multiplier)
         add_experience(gs, player, exp_amount)
 
+        if gs.active_skill != nil{
+            add_skill_experience(gs, EXPERIENCE_PER_ENEMY)
+        }
+
         when_enemy_dies(gs, enemy)
         entity_destroy(gs, enemy)
     }
@@ -508,7 +518,7 @@ init_wave_config :: proc() -> Wave_Config{
 
         health_scale = 0.08,
         damage_scale = 0.06,
-        speed_scale = 0.03,
+        speed_scale = 0.02,
     }
 }
 
