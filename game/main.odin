@@ -184,12 +184,20 @@ draw_tiles :: proc(gs: ^Game_State, player: Entity) {
 first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.state_kind = .MENU
     gs.wave_status = .WAITING
+
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
+
+
     gs.wave_config = init_wave_config()
+	load_map_into_tiles(gs.tiles[:])
+
+	init_game_systems(gs)
+}
+
+init_game_systems :: proc(gs: ^Game_State){
     init_skills(gs)
     init_quests(gs)
-	load_map_into_tiles(gs.tiles[:])
 }
 
 //
@@ -224,7 +232,7 @@ ATTACK_SPEED_BONUS_PER_LEVEL :: 0.1
 ACCURACY_BONUS_PER_LEVEL :: 0.1
 DAMAGE_BONUS_PER_LEVEL :: 0.15
 ARMOR_BONUS_PER_LEVEL :: 0.1
-LIFE_STEAL_PER_LEVEL :: 0.03
+LIFE_STEAL_PER_LEVEL :: 0.075
 EXP_GAIN_BONUS_PER_LEVEL :: 0.1
 CRIT_CHANCE_PER_LEVEL :: 0.05
 CRIT_DAMAGE_PER_LEVEL :: 0.1
@@ -289,7 +297,7 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2 // half of the starting max health
         e.damage = current_damage * 2
     }else{
-	   e.health = 100
+	   e.health = 50
 	   e.max_health = 100
 	   e.damage = 10
     }
@@ -390,49 +398,38 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 
 FOV_RANGE :: 1200.0 // Range in which the player can detect enemies
 
+start_new_game :: proc(gs: ^Game_State) {
+    for &en in gs.entities {
+        if .allocated in en.flags {
+            entity_destroy(gs, &en)
+        }
+    }
+
+    for text in &gs.floating_texts {
+        delete(text.text)
+    }
+    clear(&gs.floating_texts)
+
+    gs.wave_number = 0
+    gs.enemies_to_spawn = 0
+    gs.currency_points = 10000
+    gs.player_level = 0
+    gs.player_experience = 0
+
+    init_game_systems(gs)
+
+    e := entity_create(gs)
+    if e != nil {
+        setup_player(e)
+    }
+}
+
 handle_input :: proc(gs: ^Game_State) {
 	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
 
 	#partial switch gs.state_kind {
 	case .MENU:
-		button_bounds := AABB {
-			-MENU_BUTTON_WIDTH * 0.5,
-			-MENU_BUTTON_HEIGHT * 0.5,
-			MENU_BUTTON_WIDTH * 0.5,
-			MENU_BUTTON_HEIGHT * 0.5,
-		}
-
-		if aabb_contains(button_bounds, mouse_pos) {
-			if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
-				for &en in gs.entities {
-					if .allocated in en.flags {
-						entity_destroy(gs, &en)
-					}
-				}
-
-				gs.wave_number = 0
-				gs.enemies_to_spawn = 0
-				gs.currency_points = 10000
-				gs.player_level = 0
-				gs.player_experience = 0
-
-                for text in &gs.floating_texts{
-                    delete(text.text)
-                }
-
-				clear(&gs.floating_texts)
-
-				e := entity_create(gs)
-				if e != nil {
-					setup_player(e)
-				}
-
-				init_skills(gs)
-				init_quests(gs)
-
-				gs.state_kind = .PLAYING
-			}
-		}
+	   // Does nothing now.
 	case .PLAYING:
 		if key_just_pressed(app_state.input_state, .ESCAPE) {
 			gs.state_kind = .PAUSED
@@ -1045,9 +1042,11 @@ try_purchase_upgrade :: proc(gs: ^Game_State, player: ^Entity, upgrade: Upgrade_
 			int(f32(player.damage) * DAMAGE_BONUS_PER_LEVEL * f32(player.upgrade_levels.damage))
 	case .armor:
 		player.upgrade_levels.armor += 1
+		old_max_health := player.max_health
 		player.max_health =
 			100 + int(f32(100) * ARMOR_BONUS_PER_LEVEL * f32(player.upgrade_levels.armor))
-		player.health = player.max_health
+		health_percentage := f32(player.health) / f32(old_max_health)
+		player.health = int(f32(player.max_health) * health_percentage)
 	case .life_steal:
 		player.upgrade_levels.life_steal += 1
 	case .exp_gain:

@@ -449,13 +449,16 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
         total_damage = int(f32(total_damage) * crit_multiplier)
     }
 
-    life_steal_amount := f32(total_damage) * (f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL)
-    if projectile.is_multishot{
-        life_steal_amount *= 0.5
-    }
+    life_steal_chance := f32(player.upgrade_levels.life_steal) * LIFE_STEAL_PER_LEVEL
 
-    if life_steal_amount > 0 && player.health < player.max_health {
-        heal_player(player, int(life_steal_amount))
+    if rand.float32() < life_steal_chance && player.health < player.max_health {
+        heal_amount := int(f32(total_damage) * 0.075)
+        if projectile.is_multishot {
+            heal_amount = int(f32(heal_amount) * 0.5)
+        }
+
+        heal_amount = max(1, heal_amount)
+        heal_player(player, heal_amount)
     }
 
     enemy.health -= total_damage

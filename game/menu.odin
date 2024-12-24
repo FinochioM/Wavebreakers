@@ -25,16 +25,12 @@ QUEST_ENTRY_HEIGHT :: 80.0
 QUEST_ENTRY_PADDING :: 10.0
 
 draw_menu :: proc(gs: ^Game_State) {
-	play_button := make_centered_button(0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
+	play_button := make_centered_button(100, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
 
-	if draw_button(play_button) {
-		e := entity_create(gs)
-		if e != nil {
-			setup_player(e)
-		}
-
-		gs.state_kind = .PLAYING
-	}
+    if draw_button(play_button){
+        start_new_game(gs)
+        gs.state_kind = .PLAYING
+    }
 }
 
 draw_pause_menu :: proc(gs: ^Game_State) {
@@ -238,6 +234,11 @@ draw_wave_button :: proc(gs: ^Game_State){
 draw_button :: proc(button: Button) -> bool {
 	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
 	is_hovered := aabb_contains(button.bounds, mouse_pos)
+	is_clicked := is_hovered && key_just_pressed(app_state.input_state, .LEFT_MOUSE)
+
+	if is_clicked {
+	   play_sound("button_click")
+	}
 
 	color := button.color
 	if is_hovered {
