@@ -38,7 +38,6 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	   en.speed = min(en.speed * (1 + delta_t), 100.0) //slow down and gradually recover the speed
 	}
 
-	// Find player entity
 	if en.target == nil {
 		for &potential_target in gs.entities {
 			if potential_target.kind == .player {
@@ -48,12 +47,10 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		}
 	}
 
-	if en.target == nil do return // No target found
-
+	if en.target == nil do return
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
 
-	// State transitions
 	#partial switch en.state {
 	case .moving:
 		if distance <= ENEMY_ATTACK_RANGE {
@@ -65,7 +62,6 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		}
 	}
 
-	// State behaviors
 	#partial switch en.state {
 	case .moving:
 		if distance > 2.0 {
@@ -110,8 +106,8 @@ find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) 
 	targets.allocator = context.temp_allocator
 
 	for &en in gs.entities {
-		if en.kind != .enemy do continue // Only enemies
-		if !(.allocated in en.flags) do continue // Only allocated entities (not destroyed)
+		if en.kind != .enemy do continue
+		if !(.allocated in en.flags) do continue
 
 		direction := en.pos - source_pos
 		distance := linalg.length(direction)
@@ -122,7 +118,6 @@ find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) 
 	}
 
 	if len(targets) > 1 {
-		// Sort with a simple bubble sorting algorithm for now.
 		for i := 0; i < len(targets) - 1; i += 1 {
 			for j := 0; j < len(targets) - i - 1; j += 1 {
 				if targets[j].distance > targets[j + 1].distance {
@@ -143,7 +138,6 @@ PROJECTILE_INITIAL_Y_VELOCITY :: 400.0
 calculate_enemy_velocity :: proc(enemy: ^Entity) -> Vector2 {
 	if enemy.state != .moving do return Vector2{}
 
-	// While moving, enemy moves directly to the player.
 	direction := linalg.normalize(enemy.target.pos - enemy.pos)
 	return direction * enemy.speed
 }

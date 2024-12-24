@@ -289,6 +289,17 @@ setup_player :: proc(e: ^Entity) {
 	e.flags |= {.allocated}
 
 	e.pos = v2{-900, -550}
+	e.animations = create_animation_collection()
+
+    idle_frames: []Image_Id = {.player_idle1, .player_idle2, .player_idle3, .player_idle4, .player_idle5, .player_idle6, .player_idle7, .player_idle8, .player_idle8,.player_idle9,.player_idle10,.player_idle11,.player_idle12,.player_idle13,.player_idle14,.player_idle15,.player_idle16,.player_idle17,.player_idle18,.player_idle19}
+    idle_anim := create_animation(idle_frames, 0.1, true, "idle")
+
+    shoot_frames: []Image_Id = {.player_attack1, .player_attack2, .player_attack3, .player_attack4, .player_attack5, .player_attack6}
+	shoot_anim := create_animation(shoot_frames, 0.1, false, "attack")
+
+	add_animation(&e.animations, shoot_anim)
+	add_animation(&e.animations, idle_anim)
+	play_animation_by_name(&e.animations, "idle")
 
     if app_state.game.active_quest != nil && app_state.game.active_quest.? == .Risk_Reward {
         current_health := e.health
@@ -314,6 +325,11 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 
 	is_boss_wave := app_state.game.wave_number % 10 == 0
 	is_first_boss := app_state.game.wave_number == FIRST_BOSS_WAVE
+
+    enemy_move_frames: []Image_Id = {.enemy1_10_1,.enemy1_10_2,.enemy1_10_3,.enemy1_10_4,.enemy1_10_5,.enemy1_10_6,.enemy1_10_7,.enemy1_10_8}
+    enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy_move")
+	add_animation(&e.animations, enemy_move_anim)
+	play_animation_by_name(&e.animations, "enemy_move")
 
 	base_health := 15
 	base_damage := 5
@@ -531,16 +547,13 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 
 				targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
 
-				if DEBUG.player_fov {
-					debug_draw_fov_range(en.pos, FOV_RANGE)
-				}
-
 				if en.attack_timer <= 0 && len(targets) > 0 {
 					closest_enemy := targets[0].entity
 					projectile := entity_create(gs)
 					if projectile != nil {
 						setup_projectile(gs, projectile, en.pos, closest_enemy.pos)
 						play_sound("shoot")
+                        play_animation_by_name(&en.animations, "attack")
 					}
 					en.attack_timer = 1.0 / en.attack_speed
 				}
@@ -591,6 +604,12 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 		}
 
 		process_wave(gs, delta_t)
+
+	    for &en in gs.entities{
+	       if .allocated in en.flags {
+	           update_current_animation(&en.animations, f32(delta_t))
+	       }
+	    }
 	}
 }
 
@@ -635,15 +654,15 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 		draw_tiles(gs, player)
 
-		for en in gs.entities {
+		for &en in gs.entities {
 			#partial switch en.kind {
 			case .player:
-				draw_player(en)
+				draw_player(&en)
 			case .enemy, .player_projectile:
 				render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
 
 				if en.kind == .enemy {
-					draw_enemy_at_pos(en, render_pos)
+					draw_enemy_at_pos(&en, render_pos)
 				} else if en.kind == .player_projectile {
 					draw_player_projectile_at_pos(en, render_pos)
 				}
@@ -684,15 +703,15 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	    }
 	case .PAUSED:
 		draw_tiles(gs, player)
-		for en in gs.entities {
+		for &en in gs.entities {
 			#partial switch en.kind {
 			case .player:
-				draw_player(en)
+				draw_player(&en)
 			case .enemy, .player_projectile:
 				render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
 
 				if en.kind == .enemy {
-					draw_enemy_at_pos(en, render_pos)
+					draw_enemy_at_pos(&en, render_pos)
 				} else if en.kind == .player_projectile{
 					draw_player_projectile_at_pos(en, render_pos)
 				}
@@ -714,14 +733,14 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
         draw_tiles(gs, player)
 
-        for en in gs.entities {
+        for &en in gs.entities {
             #partial switch en.kind {
             case .player:
-                draw_player(en)
+                draw_player(&en)
             case .enemy, .player_projectile:
                 render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
                 if en.kind == .enemy {
-                    draw_enemy_at_pos(en, render_pos)
+                    draw_enemy_at_pos(&en, render_pos)
                 } else if en.kind == .player_projectile {
                     draw_player_projectile_at_pos(en, render_pos)
                 }
@@ -770,15 +789,15 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
         draw_tiles(gs, player)
 
-        for en in gs.entities {
+        for &en in gs.entities {
             #partial switch en.kind {
             case .player:
-                draw_player(en)
+                draw_player(&en)
             case .enemy, .player_projectile:
                 render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
 
                 if en.kind == .enemy {
-                    draw_enemy_at_pos(en, render_pos)
+                    draw_enemy_at_pos(&en, render_pos)
                 } else if en.kind == .player_projectile {
                     draw_player_projectile_at_pos(en, render_pos)
                 }
@@ -820,17 +839,15 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	}
 }
 
-draw_player :: proc(en: Entity) {
-	img := Image_Id.player
+draw_player :: proc(en: ^Entity) {
+    xform := Matrix4(1)
+    xform *= xform_scale(v2{3, 3})
 
-	xform := Matrix4(1)
-	xform *= xform_scale(v2{4, 4})
-
-	draw_sprite(en.pos, img, pivot = .bottom_center, xform = xform)
+    draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
 }
 
-draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
-	img := Image_Id.enemy1_10
+draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
+	img := Image_Id.enemy1_10_1
 
 	if en.enemy_type == 10{
 	   img = .boss10
@@ -844,7 +861,7 @@ draw_enemy_at_pos :: proc(en: Entity, pos: Vector2) {
 	   xform *= xform_scale(v2{4, 4})
 	}
 
-	draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
+	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
 }
 
 draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
@@ -1454,4 +1471,201 @@ remove_quest_effects :: proc(gs: ^Game_State, quest: ^Quest) {
 player_pos :: proc(gs: ^Game_State) -> Vector2 {
     player := find_player(gs)
     return player != nil ? player.pos : Vector2{}
+}
+
+//
+// :animations
+create_animation :: proc(frames: []Image_Id, frame_duration: f32, loops: bool, name: string) -> Animation {
+    fmt.println("Creating animation:", name)
+
+    // Create a persistent copy of the frames
+    frames_copy := make([]Image_Id, len(frames), context.allocator)
+    copy(frames_copy[:], frames)
+
+    fmt.println("Copied frames:")
+    for frame, i in frames_copy {
+        fmt.println("Frame", i, ":", frame)
+    }
+
+    return Animation{
+        frames = frames_copy,
+        current_frame = 0,
+        frame_duration = frame_duration,
+        frame_timer = 0,
+        state = .Stopped,
+        loops = loops,
+        name = name,
+    }
+}
+update_animation :: proc(anim: ^Animation, delta_t: f32) -> bool {
+    if anim == nil {
+        return false
+    }
+
+    if anim.state != .Playing {
+        return false
+    }
+
+    anim.frame_timer += delta_t
+    if anim.frame_timer >= anim.frame_duration {
+        anim.frame_timer -= anim.frame_duration
+        anim.current_frame += 1
+
+        if anim.current_frame >= len(anim.frames) {
+            if anim.loops {
+                anim.current_frame = 0
+            } else {
+                anim.current_frame = len(anim.frames) - 1
+                anim.state = .Stopped
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+get_current_frame :: proc(anim: ^Animation) -> Image_Id {
+    if anim == nil {
+        return .nil
+    }
+
+    if len(anim.frames) == 0 {
+        return .nil
+    }
+
+    if anim.current_frame < 0 || anim.current_frame >= len(anim.frames) {
+        return .nil
+    }
+
+    frame := anim.frames[anim.current_frame]
+    return frame
+}
+
+draw_animated_sprite :: proc(pos: Vector2, anim: ^Animation, pivot := Pivot.bottom_left, xform := Matrix4(1)){
+    if anim == nil do return
+    current_frame := get_current_frame(anim)
+    draw_sprite(pos, current_frame, pivot, xform)
+}
+
+play_animation :: proc(anim: ^Animation){
+    if anim == nil do return
+    anim.state = .Playing
+}
+
+pause_animation :: proc(anim: ^Animation){
+    if anim == nil do return
+    anim.state = .Paused
+}
+
+stop_animation :: proc(anim: ^Animation) {
+    if anim == nil do return
+    anim.state = .Stopped
+    anim.current_frame = 0
+    anim.frame_timer = 0
+}
+
+reset_animation :: proc(anim: ^Animation){
+    if anim == nil do return
+    anim.current_frame = 0
+    anim.frame_timer = 0
+}
+
+create_animation_collection :: proc() -> Animation_Collection {
+    return Animation_Collection{
+        animations = make(map[string]Animation),
+        current_animation = "",
+    }
+}
+
+add_animation :: proc(collection: ^Animation_Collection, animation: Animation){
+    collection.animations[animation.name] = animation
+}
+
+play_animation_by_name :: proc(collection: ^Animation_Collection, name: string) {
+    if collection == nil {
+        return
+    }
+
+    if collection.current_animation == name {
+        return
+    }
+
+    if collection.current_animation != "" {
+        if anim, ok := &collection.animations[collection.current_animation]; ok {
+            stop_animation(anim)
+        }
+    }
+
+    if anim, ok := &collection.animations[name]; ok {
+        collection.current_animation = name
+        play_animation(anim)
+    } else {
+        fmt.println("Animation not found:", name)
+    }
+}
+
+update_current_animation :: proc(collection: ^Animation_Collection, delta_t: f32) {
+    if collection.current_animation != "" {
+        if anim, ok := &collection.animations[collection.current_animation]; ok {
+            animation_finished := update_animation(anim, delta_t)
+            if animation_finished && collection.current_animation == "attack"{
+                play_animation_by_name(collection, "idle")
+            }
+            //update_animation(anim, delta_t)
+        }
+    }
+}
+
+draw_current_animation :: proc(collection: ^Animation_Collection, pos: Vector2, pivot := Pivot.bottom_left, xform := Matrix4(1)) {
+    if collection == nil || collection.current_animation == "" do return
+    if anim, ok := &collection.animations[collection.current_animation]; ok {
+        draw_animated_sprite(pos, anim, pivot, xform)
+    }
+}
+
+load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id, bool) {
+    frames: [dynamic]Image_Id
+    frames.allocator = context.temp_allocator
+
+    // Convert string to cstring for the API
+    dir_handle, err := os.open(directory)
+    if err != 0 {
+        log_error("Failed to open directory:", directory)
+        return nil, false
+    }
+    defer os.close(dir_handle)
+
+    files, read_err := os.read_dir(dir_handle, 0)
+    if read_err != 0 {
+        log_error("Failed to read directory:", directory)
+        return nil, false
+    }
+
+    for file in files {
+        if !strings.has_prefix(file.name, prefix) do continue
+        if !strings.has_suffix(file.name, ".png") do continue
+
+        frame_name := strings.concatenate({prefix, "_", strings.trim_suffix(file.name, ".png")})
+
+        frame_id: Image_Id
+        switch frame_name {
+            case "player_attack1": frame_id = .player_attack1
+            case "player_attack2": frame_id = .player_attack2
+            case "player_attack3": frame_id = .player_attack3
+            case "player_attack4": frame_id = .player_attack4
+            case "player_attack5": frame_id = .player_attack5
+            case "player_attack6": frame_id = .player_attack6
+            case: continue
+        }
+
+        append(&frames, frame_id)
+    }
+
+    if len(frames) == 0 {
+        log_error("No frames found for animation:", prefix)
+        return nil, false
+    }
+
+    return frames[:], true
 }

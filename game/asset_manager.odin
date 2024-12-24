@@ -14,9 +14,43 @@ import stbtt "vendor:stb/truetype"
 //
 Image_Id :: enum {
 	nil,
-	player,
+	player_attack1,
+	player_attack2,
+	player_attack3,
+	player_attack4,
+	player_attack5,
+	player_attack6,
+	player_attack7,
+	player_attack8,
+	player_attack9,
+	player_idle1,
+	player_idle2,
+	player_idle3,
+	player_idle4,
+	player_idle5,
+	player_idle6,
+	player_idle7,
+	player_idle8,
+	player_idle9,
+	player_idle10,
+	player_idle11,
+	player_idle12,
+	player_idle13,
+	player_idle14,
+	player_idle15,
+	player_idle16,
+	player_idle17,
+	player_idle18,
+	player_idle19,
 	player_projectile,
-	enemy1_10,
+	enemy1_10_1,
+	enemy1_10_2,
+	enemy1_10_3,
+	enemy1_10_4,
+	enemy1_10_5,
+	enemy1_10_6,
+	enemy1_10_7,
+	enemy1_10_8,
 	boss10,
 }
 
@@ -27,24 +61,34 @@ Image :: struct {
 	data:          [^]byte,
 	atlas_uvs:     Vector4,
 }
-images: [128]Image
+images: [512]Image
 image_count: int
 
 init_images :: proc() {
 	using fmt
 
 	img_dir := "./res/images/"
+    println("Starting image initialization...")
 
 	highest_id := 0
 	for img_name, id in Image_Id {
-		if id == 0 {continue}
+		if id == 0 {
+        println("Skipping nil image")
+		continue
+	}
 
 		if id > highest_id {
 			highest_id = id
 		}
 
+        println("Processing image ID:", id, "Name:", img_name)
 		path := tprint(img_dir, img_name, ".png", sep = "")
+
 		png_data, succ := os.read_entire_file(path)
+        if !succ {
+            println("Failed to load image file:", path)
+            continue
+        }
 		assert(succ)
 
 		stbi.set_flip_vertically_on_load(1)
@@ -68,6 +112,9 @@ init_images :: proc() {
 	}
 	image_count = highest_id + 1
 
+    println("Final image count:", image_count)
+    println("Highest ID:", highest_id)
+
 	pack_images_into_atlas()
 }
 
@@ -78,79 +125,132 @@ Atlas :: struct {
 atlas: Atlas
 
 pack_images_into_atlas :: proc() {
-	atlas.w = 128
-	atlas.h = 128
+    // First, calculate required space
+    max_width := 0
+    max_height := 0
+    total_area := 0
 
-	cont: stbrp.Context
-	nodes: [128]stbrp.Node
-	stbrp.init_target(&cont, auto_cast atlas.w, auto_cast atlas.h, &nodes[0], auto_cast atlas.w)
+    for img, id in images {
+        if img.width == 0 do continue
+        max_width = max(max_width, int(img.width))
+        max_height = max(max_height, int(img.height))
+        total_area += int(img.width) * int(img.height)
+    }
 
-	rects: [dynamic]stbrp.Rect
-	for img, id in images {
-		if img.width == 0 {
-			continue
-		}
-		append(
-			&rects,
-			stbrp.Rect{id = auto_cast id, w = auto_cast img.width, h = auto_cast img.height},
-		)
-	}
+    fmt.println("Max image dimensions:", max_width, "x", max_height)
+    fmt.println("Total area needed:", total_area)
 
-	succ := stbrp.pack_rects(&cont, &rects[0], auto_cast len(rects))
-	if succ == 0 {
-		assert(false, "failed to pack all the rects, ran out of space?")
-	}
+    // Set atlas size based on power of 2 that can fit our images
+    min_size := 128
+    for min_size * min_size < total_area * 2 { // * 2 for some padding
+        min_size *= 2
+    }
 
-	// allocate big atlas
-	raw_data, err := mem.alloc(atlas.w * atlas.h * 4)
-	defer mem.free(raw_data)
-	mem.set(raw_data, 255, atlas.w * atlas.h * 4)
+    atlas.w = min_size
+    atlas.h = min_size
 
-	// copy rect row-by-row into destination atlas
-	for rect in rects {
-		img := &images[rect.id]
+    fmt.println("Using atlas size:", atlas.w, "x", atlas.h)
 
-		// copy row by row into atlas
-		for row in 0 ..< rect.h {
-			src_row := mem.ptr_offset(&img.data[0], row * rect.w * 4)
-			dest_row := mem.ptr_offset(
-				cast(^u8)raw_data,
-				((rect.y + row) * auto_cast atlas.w + rect.x) * 4,
-			)
-			mem.copy(dest_row, src_row, auto_cast rect.w * 4)
-		}
+    // Create nodes array
+    nodes := make([dynamic]stbrp.Node, atlas.w)
+    defer delete(nodes)
 
-		stbi.image_free(img.data)
-		img.data = nil
+    cont: stbrp.Context
+    stbrp.init_target(&cont, auto_cast atlas.w, auto_cast atlas.h, raw_data(nodes), auto_cast len(nodes))
 
-		img.atlas_uvs.x = cast(f32)rect.x / cast(f32)atlas.w
-		img.atlas_uvs.y = cast(f32)rect.y / cast(f32)atlas.h
-		img.atlas_uvs.z = img.atlas_uvs.x + cast(f32)img.width / cast(f32)atlas.w
-		img.atlas_uvs.w = img.atlas_uvs.y + cast(f32)img.height / cast(f32)atlas.h
-	}
+    // Create rects array
+    rects := make([dynamic]stbrp.Rect)
+    defer delete(rects)
 
-	stbi.write_png(
-		"atlases/atlas.png",
-		auto_cast atlas.w,
-		auto_cast atlas.h,
-		4,
-		raw_data,
-		4 * auto_cast atlas.w,
-	)
+    for img, id in images {
+        if img.width == 0 do continue
+        rect := stbrp.Rect{
+            id = auto_cast id,
+            w = auto_cast img.width,
+            h = auto_cast img.height,
+        }
+        append(&rects, rect)
+    }
 
-	// setup image for GPU
-	desc: sg.Image_Desc
-	desc.width = auto_cast atlas.w
-	desc.height = auto_cast atlas.h
-	desc.pixel_format = .RGBA8
-	desc.data.subimage[0][0] = {
-		ptr  = raw_data,
-		size = auto_cast (atlas.w * atlas.h * 4),
-	}
-	atlas.sg_image = sg.make_image(desc)
-	if atlas.sg_image.id == sg.INVALID_ID {
-		log_error("failed to make image")
-	}
+    if len(rects) == 0 {
+        fmt.println("No images to pack!")
+        return
+    }
+
+    succ := stbrp.pack_rects(&cont, raw_data(rects), auto_cast len(rects))
+    if succ == 0 {
+        fmt.println("Failed to pack rectangles!")
+        for rect, i in rects {
+            fmt.printf("Rect %d: %dx%d = %d pixels\n",
+                rect.id, rect.w, rect.h, rect.w * rect.h)
+        }
+        fmt.printf("Total pixels needed: %d\n", total_area)
+        fmt.printf("Atlas capacity: %d\n", atlas.w * atlas.h)
+        assert(false, "failed to pack all the rects, ran out of space?")
+    }
+
+    // allocate big atlas with proper size
+    raw_data_size := atlas.w * atlas.h * 4
+    atlas_data, err := mem.alloc(raw_data_size)
+    if err != nil {
+        fmt.println("Failed to allocate atlas memory!")
+        return
+    }
+    defer mem.free(atlas_data)
+
+    mem.set(atlas_data, 255, raw_data_size)
+
+    // copy rect row-by-row into destination atlas
+    for rect in rects {
+        img := &images[rect.id]
+        if img == nil || img.data == nil {
+            fmt.println("Invalid image data for rect:", rect.id)
+            continue
+        }
+
+        // copy row by row into atlas
+        for row in 0 ..< rect.h {
+            src_row := mem.ptr_offset(&img.data[0], row * rect.w * 4)
+            dest_row := mem.ptr_offset(
+                cast(^u8)atlas_data,
+                ((rect.y + row) * auto_cast atlas.w + rect.x) * 4,
+            )
+            mem.copy(dest_row, src_row, auto_cast rect.w * 4)
+        }
+
+        stbi.image_free(img.data)
+        img.data = nil
+
+        img.atlas_uvs.x = cast(f32)rect.x / cast(f32)atlas.w
+        img.atlas_uvs.y = cast(f32)rect.y / cast(f32)atlas.h
+        img.atlas_uvs.z = img.atlas_uvs.x + cast(f32)img.width / cast(f32)atlas.w
+        img.atlas_uvs.w = img.atlas_uvs.y + cast(f32)img.height / cast(f32)atlas.h
+    }
+
+    // Write debug atlas
+    stbi.write_png(
+        "atlases/atlas.png",
+        auto_cast atlas.w,
+        auto_cast atlas.h,
+        4,
+        atlas_data,
+        4 * auto_cast atlas.w,
+    )
+
+    // setup image for GPU
+    desc: sg.Image_Desc
+    desc.width = auto_cast atlas.w
+    desc.height = auto_cast atlas.h
+    desc.pixel_format = .RGBA8
+    desc.data.subimage[0][0] = {
+        ptr = atlas_data,
+        size = auto_cast raw_data_size,
+    }
+
+    atlas.sg_image = sg.make_image(desc)
+    if atlas.sg_image.id == sg.INVALID_ID {
+        log_error("failed to make image")
+    }
 }
 
 //

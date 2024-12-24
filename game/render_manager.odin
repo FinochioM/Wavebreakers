@@ -1,6 +1,7 @@
 package main
 
 import "core:math/linalg"
+import "core:fmt"
 
 draw_sprite :: proc(
 	pos: Vector2,
@@ -10,6 +11,11 @@ draw_sprite :: proc(
 	color_override := v4{0, 0, 0, 0},
 	deferred := false,
 ) {
+    if int(img_id) < 0 || int(img_id) >= len(images) {
+        fmt.println("Invalid image ID:", img_id, "at position", int(img_id))
+        return
+    }
+
 	image := images[img_id]
 	size := v2{auto_cast image.width, auto_cast image.height}
 

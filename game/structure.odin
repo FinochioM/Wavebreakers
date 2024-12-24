@@ -125,6 +125,7 @@ Entity :: struct {
 	current_element: Element_Kind,
 	chain_reaction_range: f32,
 	is_multishot: bool,
+	animations: Animation_Collection,
 }
 
 Element_Kind :: enum{
@@ -215,4 +216,25 @@ Quest_Info :: struct {
     unlock_level: int,
     base_cost: int,
     description: string,
+}
+
+Animation_State :: enum {
+    Playing,
+    Paused,
+    Stopped,
+}
+
+Animation :: struct {
+    frames: []Image_Id,
+    current_frame: int,
+    frame_duration: f32,
+    frame_timer: f32,
+    state: Animation_State,
+    loops: bool,
+    name: string,
+}
+
+Animation_Collection :: struct {
+    animations: map[string]Animation,
+    current_animation: string,
 }
