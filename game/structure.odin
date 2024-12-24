@@ -1,5 +1,6 @@
 package main
 
+
 Button :: struct {
 	bounds:     AABB,
 	text:       string,
@@ -232,6 +233,7 @@ Animation :: struct {
     state: Animation_State,
     loops: bool,
     name: string,
+    base_duration: f32,
 }
 
 Animation_Collection :: struct {

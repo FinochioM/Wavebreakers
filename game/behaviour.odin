@@ -75,6 +75,7 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		en.attack_timer -= delta_t
 		if en.attack_timer <= 0 {
 			if en.target != nil {
+			    play_animation_by_name(&en.animations,"enemy1_10_attack")
 				damage := process_enemy_damage(en.target, en.damage)
 				en.target.health -= damage
 

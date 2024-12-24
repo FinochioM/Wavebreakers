@@ -11,6 +11,7 @@ import "core:os"
 import "core:strings"
 import t "core:time"
 
+
 import sapp "../sokol/app"
 import sg "../sokol/gfx"
 import sglue "../sokol/glue"
@@ -291,10 +292,10 @@ setup_player :: proc(e: ^Entity) {
 	e.pos = v2{-900, -550}
 	e.animations = create_animation_collection()
 
-    idle_frames: []Image_Id = {.player_idle1, .player_idle2, .player_idle3, .player_idle4, .player_idle5, .player_idle6, .player_idle7, .player_idle8, .player_idle8,.player_idle9,.player_idle10,.player_idle11,.player_idle12,.player_idle13,.player_idle14,.player_idle15,.player_idle16,.player_idle17,.player_idle18,.player_idle19}
+    idle_frames: []Image_Id = {.player_idle1, .player_idle2, .player_idle3, .player_idle4, .player_idle5, .player_idle6, .player_idle7, .player_idle8}
     idle_anim := create_animation(idle_frames, 0.1, true, "idle")
 
-    shoot_frames: []Image_Id = {.player_attack1, .player_attack2, .player_attack3, .player_attack4, .player_attack5, .player_attack6}
+    shoot_frames: []Image_Id = {.player_attack1, .player_attack2, .player_attack3, .player_attack4, .player_attack5, .player_attack6, .player_attack7, .player_attack8}
 	shoot_anim := create_animation(shoot_frames, 0.1, false, "attack")
 
 	add_animation(&e.animations, shoot_anim)
@@ -325,18 +326,23 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 
 	is_boss_wave := app_state.game.wave_number % 10 == 0
 	is_first_boss := app_state.game.wave_number == FIRST_BOSS_WAVE
+	wave_num := f32(app_state.game.wave_number)
 
-    enemy_move_frames: []Image_Id = {.enemy1_10_1,.enemy1_10_2,.enemy1_10_3,.enemy1_10_4,.enemy1_10_5,.enemy1_10_6,.enemy1_10_7,.enemy1_10_8}
-    enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy_move")
+    enemy_move_frames: []Image_Id = {.enemy1_10_1_move,.enemy1_10_2_move,.enemy1_10_3_move,.enemy1_10_4_move,.enemy1_10_5_move,.enemy1_10_6_move,.enemy1_10_7_move,.enemy1_10_8_move}
+    enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy1_10_move")
+
+    enemy_attack_frames: []Image_Id = {.enemy1_10_1_attack,.enemy1_10_2_attack,.enemy1_10_3_attack,.enemy1_10_4_attack,.enemy1_10_5_attack,.enemy1_10_6_attack,.enemy1_10_7_attack,.enemy1_10_8_attack}
+    enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, true, "enemy1_10_attack")
+
 	add_animation(&e.animations, enemy_move_anim)
-	play_animation_by_name(&e.animations, "enemy_move")
+	add_animation(&e.animations, enemy_attack_anim)
+	play_animation_by_name(&e.animations, "enemy1_10_move")
 
 	base_health := 15
 	base_damage := 5
 	base_speed := 100.0
 
 	config := app_state.game.wave_config
-	wave_num := f32(app_state.game.wave_number)
 
 	health_mult := 1.0 + (config.health_scale * wave_num)
 	damage_mult := 1.0 + (config.damage_scale * wave_num)
@@ -548,15 +554,23 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 				targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
 
 				if en.attack_timer <= 0 && len(targets) > 0 {
-					closest_enemy := targets[0].entity
-					projectile := entity_create(gs)
-					if projectile != nil {
-						setup_projectile(gs, projectile, en.pos, closest_enemy.pos)
-						play_sound("shoot")
-                        play_animation_by_name(&en.animations, "attack")
-					}
-					en.attack_timer = 1.0 / en.attack_speed
+                    play_animation_by_name(&en.animations, "attack")
+
+                    if anim, ok := &en.animations.animations["attack"]; ok{
+                        adjust_animation_to_speed(anim, en.attack_speed)
+                    }
+
+    				if should_spawn_projectile(&en) && len(targets) > 0{
+    					closest_enemy := targets[0].entity
+        				projectile := entity_create(gs)
+        				if projectile != nil {
+        					setup_projectile(gs, projectile, en.pos, closest_enemy.pos)
+        					play_sound("shoot")
+        				}
+        				en.attack_timer = 1.0 / en.attack_speed
+				    }
 				}
+
 			}
 			if en.kind == .enemy {
 				process_enemy_behaviour(&en, gs, f32(delta_t))
@@ -847,7 +861,7 @@ draw_player :: proc(en: ^Entity) {
 }
 
 draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
-	img := Image_Id.enemy1_10_1
+	img := Image_Id.enemy1_10_1_move
 
 	if en.enemy_type == 10{
 	   img = .boss10
@@ -862,6 +876,15 @@ draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
 	}
 
 	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
+}
+
+should_spawn_projectile :: proc(en: ^Entity) -> bool {
+    if en.animations.current_animation != "attack" do return false
+
+    if anim, ok := en.animations.animations["attack"]; ok {
+        return anim.current_frame == 7
+    }
+    return false
 }
 
 draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
@@ -1476,27 +1499,27 @@ player_pos :: proc(gs: ^Game_State) -> Vector2 {
 //
 // :animations
 create_animation :: proc(frames: []Image_Id, frame_duration: f32, loops: bool, name: string) -> Animation {
-    fmt.println("Creating animation:", name)
-
-    // Create a persistent copy of the frames
     frames_copy := make([]Image_Id, len(frames), context.allocator)
     copy(frames_copy[:], frames)
-
-    fmt.println("Copied frames:")
-    for frame, i in frames_copy {
-        fmt.println("Frame", i, ":", frame)
-    }
 
     return Animation{
         frames = frames_copy,
         current_frame = 0,
         frame_duration = frame_duration,
+        base_duration = frame_duration,
         frame_timer = 0,
         state = .Stopped,
         loops = loops,
         name = name,
     }
 }
+
+adjust_animation_to_speed :: proc(anim:  ^Animation, speed_multiplier: f32) {
+    if anim == nil do return
+
+    anim.frame_duration = anim.base_duration / speed_multiplier
+}
+
 update_animation :: proc(anim: ^Animation, delta_t: f32) -> bool {
     if anim == nil {
         return false
@@ -1612,7 +1635,6 @@ update_current_animation :: proc(collection: ^Animation_Collection, delta_t: f32
             if animation_finished && collection.current_animation == "attack"{
                 play_animation_by_name(collection, "idle")
             }
-            //update_animation(anim, delta_t)
         }
     }
 }
@@ -1628,7 +1650,6 @@ load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id,
     frames: [dynamic]Image_Id
     frames.allocator = context.temp_allocator
 
-    // Convert string to cstring for the API
     dir_handle, err := os.open(directory)
     if err != 0 {
         log_error("Failed to open directory:", directory)
@@ -1669,3 +1690,4 @@ load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id,
 
     return frames[:], true
 }
+

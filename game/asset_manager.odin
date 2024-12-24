@@ -22,7 +22,6 @@ Image_Id :: enum {
 	player_attack6,
 	player_attack7,
 	player_attack8,
-	player_attack9,
 	player_idle1,
 	player_idle2,
 	player_idle3,
@@ -31,27 +30,26 @@ Image_Id :: enum {
 	player_idle6,
 	player_idle7,
 	player_idle8,
-	player_idle9,
-	player_idle10,
-	player_idle11,
-	player_idle12,
-	player_idle13,
-	player_idle14,
-	player_idle15,
-	player_idle16,
-	player_idle17,
-	player_idle18,
-	player_idle19,
 	player_projectile,
-	enemy1_10_1,
-	enemy1_10_2,
-	enemy1_10_3,
-	enemy1_10_4,
-	enemy1_10_5,
-	enemy1_10_6,
-	enemy1_10_7,
-	enemy1_10_8,
+	enemy1_10_1_move,
+	enemy1_10_2_move,
+	enemy1_10_3_move,
+	enemy1_10_4_move,
+	enemy1_10_5_move,
+	enemy1_10_6_move,
+	enemy1_10_7_move,
+	enemy1_10_8_move,
+	enemy1_10_1_attack,
+	enemy1_10_2_attack,
+	enemy1_10_3_attack,
+	enemy1_10_4_attack,
+	enemy1_10_5_attack,
+	enemy1_10_6_attack,
+	enemy1_10_7_attack,
+	enemy1_10_8_attack,
 	boss10,
+	enemy_11_19_1,
+	boss20,
 }
 
 Image :: struct {
@@ -68,12 +66,10 @@ init_images :: proc() {
 	using fmt
 
 	img_dir := "./res/images/"
-    println("Starting image initialization...")
 
 	highest_id := 0
 	for img_name, id in Image_Id {
 		if id == 0 {
-        println("Skipping nil image")
 		continue
 	}
 
@@ -81,12 +77,10 @@ init_images :: proc() {
 			highest_id = id
 		}
 
-        println("Processing image ID:", id, "Name:", img_name)
 		path := tprint(img_dir, img_name, ".png", sep = "")
 
 		png_data, succ := os.read_entire_file(path)
         if !succ {
-            println("Failed to load image file:", path)
             continue
         }
 		assert(succ)
@@ -111,10 +105,6 @@ init_images :: proc() {
 		images[id] = img
 	}
 	image_count = highest_id + 1
-
-    println("Final image count:", image_count)
-    println("Highest ID:", highest_id)
-
 	pack_images_into_atlas()
 }
 
@@ -125,7 +115,6 @@ Atlas :: struct {
 atlas: Atlas
 
 pack_images_into_atlas :: proc() {
-    // First, calculate required space
     max_width := 0
     max_height := 0
     total_area := 0
@@ -137,10 +126,6 @@ pack_images_into_atlas :: proc() {
         total_area += int(img.width) * int(img.height)
     }
 
-    fmt.println("Max image dimensions:", max_width, "x", max_height)
-    fmt.println("Total area needed:", total_area)
-
-    // Set atlas size based on power of 2 that can fit our images
     min_size := 128
     for min_size * min_size < total_area * 2 { // * 2 for some padding
         min_size *= 2
@@ -149,16 +134,12 @@ pack_images_into_atlas :: proc() {
     atlas.w = min_size
     atlas.h = min_size
 
-    fmt.println("Using atlas size:", atlas.w, "x", atlas.h)
-
-    // Create nodes array
     nodes := make([dynamic]stbrp.Node, atlas.w)
     defer delete(nodes)
 
     cont: stbrp.Context
     stbrp.init_target(&cont, auto_cast atlas.w, auto_cast atlas.h, raw_data(nodes), auto_cast len(nodes))
 
-    // Create rects array
     rects := make([dynamic]stbrp.Rect)
     defer delete(rects)
 
@@ -173,19 +154,15 @@ pack_images_into_atlas :: proc() {
     }
 
     if len(rects) == 0 {
-        fmt.println("No images to pack!")
         return
     }
 
     succ := stbrp.pack_rects(&cont, raw_data(rects), auto_cast len(rects))
     if succ == 0 {
-        fmt.println("Failed to pack rectangles!")
         for rect, i in rects {
             fmt.printf("Rect %d: %dx%d = %d pixels\n",
                 rect.id, rect.w, rect.h, rect.w * rect.h)
         }
-        fmt.printf("Total pixels needed: %d\n", total_area)
-        fmt.printf("Atlas capacity: %d\n", atlas.w * atlas.h)
         assert(false, "failed to pack all the rects, ran out of space?")
     }
 
@@ -193,7 +170,6 @@ pack_images_into_atlas :: proc() {
     raw_data_size := atlas.w * atlas.h * 4
     atlas_data, err := mem.alloc(raw_data_size)
     if err != nil {
-        fmt.println("Failed to allocate atlas memory!")
         return
     }
     defer mem.free(atlas_data)
@@ -204,7 +180,6 @@ pack_images_into_atlas :: proc() {
     for rect in rects {
         img := &images[rect.id]
         if img == nil || img.data == nil {
-            fmt.println("Invalid image data for rect:", rect.id)
             continue
         }
 

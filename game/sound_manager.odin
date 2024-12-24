@@ -32,7 +32,6 @@ play_sound :: proc(name: string) {
     using sound_st
 
     event_path := fmt.tprintf("event:/%s", name)
-    fmt.println("Trying to play sound:", event_path)
 
     event_desc: ^EVENTDESCRIPTION
     result := System_GetEvent(system, fmt.ctprint(event_path), &event_desc) // Use event_path instead of name
