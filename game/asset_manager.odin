@@ -48,7 +48,14 @@ Image_Id :: enum {
 	enemy1_10_7_attack,
 	enemy1_10_8_attack,
 	boss10,
-	enemy_11_19_1,
+	enemy11_19_1_move,
+	enemy11_19_2_move,
+	enemy11_19_3_move,
+	enemy11_19_4_move,
+	enemy11_19_5_move,
+	enemy11_19_6_move,
+	enemy11_19_7_move,
+	enemy11_19_8_move,
 	boss20,
 }
 

@@ -321,55 +321,83 @@ setup_player :: proc(e: ^Entity) {
 }
 
 setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
-	e.kind = .enemy
-	e.flags |= {.allocated}
+    e.kind = .enemy
+    e.flags |= {.allocated}
 
-	is_boss_wave := app_state.game.wave_number % 10 == 0
-	is_first_boss := app_state.game.wave_number == FIRST_BOSS_WAVE
-	wave_num := f32(app_state.game.wave_number)
+    is_boss_wave := app_state.game.wave_number % 10 == 0
+    is_first_boss := app_state.game.wave_number == FIRST_BOSS_WAVE
+    wave_num := app_state.game.wave_number
 
-    enemy_move_frames: []Image_Id = {.enemy1_10_1_move,.enemy1_10_2_move,.enemy1_10_3_move,.enemy1_10_4_move,.enemy1_10_5_move,.enemy1_10_6_move,.enemy1_10_7_move,.enemy1_10_8_move}
-    enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy1_10_move")
+    e.animations = create_animation_collection()
 
-    enemy_attack_frames: []Image_Id = {.enemy1_10_1_attack,.enemy1_10_2_attack,.enemy1_10_3_attack,.enemy1_10_4_attack,.enemy1_10_5_attack,.enemy1_10_6_attack,.enemy1_10_7_attack,.enemy1_10_8_attack}
-    enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, true, "enemy1_10_attack")
+    if is_boss_wave {
+        switch wave_num {
+            case 10:
+                e.enemy_type = 10
+                e.value = 50
+                draw_sprite(pos, .boss10, pivot = .bottom_center)
+            case 20:
+                e.enemy_type = 20
+                e.value = 100
+                draw_sprite(pos, .boss20, pivot = .bottom_center)
+        }
+    }else{
+        if wave_num <= 10{
+            e.enemy_type = 1
+            enemy_move_frames: []Image_Id = {
+                .enemy1_10_1_move,.enemy1_10_2_move,.enemy1_10_3_move,.enemy1_10_4_move,
+                .enemy1_10_5_move,.enemy1_10_6_move,.enemy1_10_7_move,.enemy1_10_8_move
+            }
+            enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy1_10_move")
+            enemy_attack_frames: []Image_Id = {
+                .enemy1_10_1_attack,.enemy1_10_2_attack,.enemy1_10_3_attack,.enemy1_10_4_attack,
+                .enemy1_10_5_attack,.enemy1_10_6_attack,.enemy1_10_7_attack,.enemy1_10_8_attack
+            }
+            enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, true, "enemy1_10_attack")
 
-	add_animation(&e.animations, enemy_move_anim)
-	add_animation(&e.animations, enemy_attack_anim)
-	play_animation_by_name(&e.animations, "enemy1_10_move")
+        	add_animation(&e.animations, enemy_move_anim)
+        	add_animation(&e.animations, enemy_attack_anim)
+        }else if wave_num <= 20{
+            e.enemy_type = 2
+            enemy2_move_frames: []Image_Id = {
+                .enemy11_19_1_move, .enemy11_19_2_move, .enemy11_19_3_move, .enemy11_19_4_move,
+                .enemy11_19_5_move, .enemy11_19_6_move, .enemy11_19_7_move, .enemy11_19_8_move,
+            }
+            enemy2_move_anim := create_animation(enemy2_move_frames, 0.1, true, "enemy11_19_move")
 
-	base_health := 15
-	base_damage := 5
-	base_speed := 100.0
+            add_animation(&e.animations, enemy2_move_anim)
+        }
 
-	config := app_state.game.wave_config
+        e.value = e.enemy_type * 2
+    }
 
-	health_mult := 1.0 + (config.health_scale * wave_num)
-	damage_mult := 1.0 + (config.damage_scale * wave_num)
-	speed_mult := 1.0 + (config.speed_scale * wave_num)
+    play_animation_by_name(&e.animations, wave_num <= 10 ? "enemy1_10_move" : "enemy11_19_move")
 
-	if is_boss_wave {
-	   health_mult *= BOSS_STATS_MULTIPLIER
-	   damage_mult *= BOSS_STATS_MULTIPLIER
-	   speed_mult *= 0.5
+    base_health := 15 + (e.enemy_type - 1) * 10
+    base_damage := 5 + (e.enemy_type - 1) * 3
+    base_speed := 100.0 - f32(e.enemy_type - 1) * 10.0
 
-	   if is_first_boss {
-	       e.enemy_type = 10
-	       e.value = 50
-	   }
-	}else{
-	   e.enemy_type = 1
-	   e.value = 1
-	}
+    config := app_state.game.wave_config
+    wave_num_32 := f32(app_state.game.wave_number)
 
-	e.pos = pos
-	e.prev_pos = pos
+    health_mult := 1.0 + (config.health_scale * wave_num_32)
+    damage_mult := 1.0 + (config.damage_scale * wave_num_32)
+    speed_mult := 1.0 + (config.speed_scale * wave_num_32)
+
+    if is_boss_wave {
+        health_mult *= BOSS_STATS_MULTIPLIER
+        damage_mult *= BOSS_STATS_MULTIPLIER
+        speed_mult *= 0.5
+    }
+
+    e.pos = pos
+    e.prev_pos = pos
     e.health = int(f32(base_health) * health_mult * difficulty)
-	e.max_health = e.health
-	e.attack_timer = 0.0
-	e.damage = int(f32(base_damage) * damage_mult * difficulty)
-	e.state = .moving
-	e.speed = f32(base_speed) * speed_mult
+    e.max_health = e.health
+    e.attack_timer = 0.0
+    e.damage = int(f32(base_damage) * damage_mult * difficulty)
+    e.state = .moving
+    e.speed = f32(base_speed) * speed_mult
 }
 
 calculate_exp_for_level :: proc(level: int) -> int {
@@ -865,6 +893,8 @@ draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
 
 	if en.enemy_type == 10{
 	   img = .boss10
+	}else if en.enemy_type == 20{
+	   img = .boss20
 	}
 
 	xform := Matrix4(1)
@@ -895,7 +925,7 @@ draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
 
     xform := Matrix4(1)
     xform *= xform_rotate(final_angle)
-    xform *= xform_scale(v2{4,4})
+    xform *= xform_scale(v2{3,3})
 
     draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }

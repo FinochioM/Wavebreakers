@@ -62,6 +62,8 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		}
 	}
 
+    wave_num := gs.wave_number
+
 	#partial switch en.state {
 	case .moving:
 		if distance > 2.0 {
@@ -75,7 +77,7 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		en.attack_timer -= delta_t
 		if en.attack_timer <= 0 {
 			if en.target != nil {
-			    play_animation_by_name(&en.animations,"enemy1_10_attack")
+			    play_animation_by_name(&en.animations, wave_num <= 10 ? "enemy1_10_attack" : "enemy11_19_attack")
 				damage := process_enemy_damage(en.target, en.damage)
 				en.target.health -= damage
 
@@ -280,20 +282,33 @@ setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: 
 }
 
 when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
-    if enemy.enemy_type == 10{
-        spawn_floating_text(
-            gs,
-            enemy.pos,
-            "First Boss Defeated",
-            v4{1, 0.5, 0, 1},
-        )
-
-        spawn_floating_text(
-            gs,
-            enemy.pos + v2{0, 50},
-            "New Enemy Type Unlocked",
-            v4{0,1,0,1},
-        )
+    switch enemy.enemy_type {
+        case 10:
+            spawn_floating_text(
+                gs,
+                enemy.pos,
+                "First Boss Defeated",
+                v4{1, 0.5, 0, 1},
+            )
+            spawn_floating_text(
+                gs,
+                enemy.pos + v2{0, 50},
+                "New Enemy Type Unlocked",
+                v4{0,1,0,1},
+            )
+        case 20:
+            spawn_floating_text(
+                gs,
+                enemy.pos,
+                "Second Boss Defeated",
+                v4{1, 0.5, 0, 1},
+            )
+            spawn_floating_text(
+                gs,
+                enemy.pos + v2{0, 50},
+                "New Enemy Type Unlocked",
+                v4{0,1,0,1},
+            )
     }
 
     enemies_to_destroy := 0
