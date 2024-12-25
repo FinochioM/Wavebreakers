@@ -883,7 +883,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 draw_player :: proc(en: ^Entity) {
     xform := Matrix4(1)
-    xform *= xform_scale(v2{3, 3})
+    xform *= xform_scale(v2{4, 4})
 
     draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
 }
@@ -1720,4 +1720,3 @@ load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id,
 
     return frames[:], true
 }
-

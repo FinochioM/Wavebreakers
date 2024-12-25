@@ -77,7 +77,7 @@ Vertex :: struct {
 
 Quad :: [4]Vertex
 
-MAX_QUADS :: 65536
+MAX_QUADS :: 135000
 MAX_VERTS :: MAX_QUADS * 4
 
 Draw_Frame :: struct {
