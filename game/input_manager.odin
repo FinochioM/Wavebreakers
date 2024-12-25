@@ -67,8 +67,5 @@ event :: proc "c" (event: ^sapp.Event) {
 		}
 	case .MOUSE_MOVE:
 		input_state.mouse_pos = {event.mouse_x, event.mouse_y}
-  	case .RESIZED:
-	   window_w = event.window_width
-	   window_h = event.window_height
 	}
 }

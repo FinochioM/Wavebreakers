@@ -42,7 +42,6 @@ Game_State :: struct {
 	tick_index:           u64,
 	entities:             [128]Entity,
 	latest_entity_handle: Entity_Handle,
-	tiles:                [WORLD_W * WORLD_H]Tile,
 	player_level:         int,
 	player_experience:    int,
 	wave_number:          int,

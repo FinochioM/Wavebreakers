@@ -21,8 +21,10 @@ draw_sprite :: proc(
 
 	xform0 := Matrix4(1)
 	xform0 *= xform_translate(pos)
-	xform0 *= xform // we slide in here because rotations + scales work nicely at this point
+	xform0 *= xform
 	xform0 *= xform_translate(size * -scale_from_pivot(pivot))
+
+	xform0 *= xform_scale(v2{1,-1})
 
 	draw_rect_xform(
 		xform0,
@@ -137,9 +139,7 @@ draw_quad_projected :: proc(
 	colors: [4]Vector4,
 	uvs: [4]Vector2,
 	tex_indicies: [4]u8,
-	//flags:           [4]Quad_Flags,
 	color_overrides: [4]Vector4,
-	//hsv:             [4]Vector3
 	deferred := false,
 ) {
 	using linalg
@@ -151,8 +151,6 @@ draw_quad_projected :: proc(
 
 	verts := cast(^[4]Vertex)&draw_frame.quads[draw_frame.quad_count]
 	if deferred {
-		// randy: me no like this, but it was needed for #debug_draw_on_sim so we could see what's
-		// happening.
 		verts =
 		cast(^[4]Vertex)&draw_frame.scuffed_deferred_quads[draw_frame.sucffed_deferred_quad_count]
 		draw_frame.sucffed_deferred_quad_count += 1

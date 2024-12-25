@@ -21,8 +21,8 @@ import stbi "vendor:stb/image"
 import stbrp "vendor:stb/rect_pack"
 import stbtt "vendor:stb/truetype"
 
-window_w: i32 =  1280
-window_h: i32 =  720
+window_w :: 1280
+window_h :: 720
 
 last_time: t.Time
 accumulator: f64
@@ -63,125 +63,6 @@ cleanup :: proc "c" () {
 //
 // :GAME
 
-// :tile
-
-// #volatile with the map image dimensions
-WORLD_W :: 128
-WORLD_H :: 80
-
-Tile_Pos :: [2]int
-
-get_tile :: proc(gs: Game_State, tile_pos: Tile_Pos) -> Tile {
-	local := world_tile_to_array_tile_pos(tile_pos)
-
-	if local.x < 0 || local.x >= WORLD_W || local.y < 0 || local.y >= WORLD_H {
-		return Tile{}
-	}
-
-	return gs.tiles[local.x + local.y * WORLD_W]
-}
-get_tile_pointer :: proc(gs: ^Game_State, tile_pos: Tile_Pos) -> ^Tile {
-	local := world_tile_to_array_tile_pos(tile_pos)
-	return &gs.tiles[local.x + local.y * WORLD_W]
-}
-
-get_tiles_in_box_radius :: proc(world_pos: Vector2, box_radius: Vector2i) -> []Tile_Pos {
-
-	tiles: [dynamic]Tile_Pos
-	tiles.allocator = context.temp_allocator
-
-	tile_pos := world_pos_to_tile_pos(world_pos)
-
-	for x := tile_pos.x - box_radius.x; x < tile_pos.x + box_radius.x; x += 1 {
-		for y := tile_pos.y - box_radius.y; y < tile_pos.y + box_radius.y; y += 1 {
-			append(&tiles, (Tile_Pos){x, y})
-		}
-	}
-
-	return tiles[:]
-}
-
-// :tile load
-load_map_into_tiles :: proc(tiles: []Tile) {
-	png_data, succ := os.read_entire_file("./res/map.png")
-
-	width, height, channels: i32
-	img_data: [^]byte = stbi.load_from_memory(
-		raw_data(png_data),
-		auto_cast len(png_data),
-		&width,
-		&height,
-		&channels,
-		4,
-	)
-
-	for x in 0 ..< WORLD_W {
-		for y in 0 ..< WORLD_H {
-			index := (x + y * WORLD_W) * 4
-			pixel: []u8 = img_data[index:index + 4]
-
-            t := &tiles[x + y * WORLD_W]
-            t.color = {
-                f32(pixel[0]) / 255.0,
-                f32(pixel[1]) / 255.0,
-                f32(pixel[2]) / 255.0,
-                f32(pixel[3]) / 255.0,
-            }
-		}
-	}
-
-}
-
-world_tile_to_array_tile_pos :: proc(world_tile: Tile_Pos) -> Vector2i {
-	x_index := world_tile.x + int(math.floor(f32(WORLD_W * 0.5)))
-	y_index := world_tile.y + int(math.floor(f32(WORLD_H * 0.5)))
-	return {x_index, y_index}
-}
-
-array_tile_pos_to_world_tile :: proc(x: int, y: int) -> Tile_Pos {
-	x_index := x - int(math.floor(f32(WORLD_W * 0.5)))
-	y_index := y - int(math.floor(f32(WORLD_H * 0.5)))
-	return (Tile_Pos){x_index, y_index}
-}
-
-TILE_LENGTH :: 16
-
-tile_pos_to_world_pos :: proc(tile_pos: Tile_Pos) -> Vector2 {
-	return (Vector2){auto_cast tile_pos.x * TILE_LENGTH, auto_cast tile_pos.y * TILE_LENGTH}
-}
-
-world_pos_to_tile_pos :: proc(world_pos: Vector2) -> Tile_Pos {
-	return (Tile_Pos) {
-		auto_cast math.floor(world_pos.x / TILE_LENGTH),
-		auto_cast math.floor(world_pos.y / TILE_LENGTH),
-	}
-}
-
-// :tile
-draw_tiles :: proc(gs: ^Game_State, player: Entity) {
-	visible_margin := 2
-	min_x := max(0, 0)
-	max_x := min(WORLD_W, WORLD_W)
-	min_y := max(0, 0)
-	max_y := min(WORLD_H, WORLD_H)
-
-	for x := min_x; x < max_x; x += 1 {
-		for y := min_y; y < max_y; y += 1 {
-			tile_pos := array_tile_pos_to_world_tile(x, y)
-			tile_pos_world := tile_pos_to_world_pos(tile_pos)
-			tile := gs.tiles[x + y * WORLD_W]
-
-            if tile.color.w > 0{
-                draw_rect_aabb(
-                    tile_pos_world,
-                    v2{TILE_LENGTH, TILE_LENGTH},
-                    col = tile.color,
-                )
-            }
-		}
-	}
-}
-
 first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.state_kind = .MENU
     gs.wave_status = .WAITING
@@ -191,7 +72,6 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 
 
     gs.wave_config = init_wave_config()
-	load_map_into_tiles(gs.tiles[:])
 
 	init_game_systems(gs)
 }
@@ -658,43 +538,33 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 //
 // :render
 
+game_res_w :: 512
+game_res_h :: 256
+
 render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	using linalg
 	player: Entity
 
-	map_width := f32(WORLD_W * TILE_LENGTH) // 2048
-	map_height := f32(WORLD_H * TILE_LENGTH) // 1280
+    draw_frame.projection = matrix_ortho3d_f32(window_w * -0.5,
+        window_w * 0.5, window_h * -0.5, window_h * 0.5, -1, 1)
 
-	scale_x := window_w / i32(map_width)
-	scale_y := window_h / i32(map_height)
-	scale := min(scale_x, scale_y)
-
-	draw_frame.projection = matrix_ortho3d_f32(
-		-map_width * 0.5, // left
-		map_width * 0.5, // right
-		-map_height * 0.5, // bottom
-		map_height * 0.5, // top
-		-1,
-		1,
-	)
-
-	// :camera
-	draw_frame.camera_xform = Matrix4(1)
+    draw_frame.camera_xform = Matrix4(1)
+    draw_frame.camera_xform *= xform_scale(f32(window_h) / f32(game_res_h))
 
 	alpha := f32(accumulator) / f32(sims_per_second)
 
 	#partial switch gs.state_kind {
 	case .MENU:
+       // draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
 		draw_menu(gs)
 	case .PLAYING:
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
 		for en in gs.entities {
 			if en.kind == .player {
 				player = en
 				break
 			}
 		}
-
-		draw_tiles(gs, player)
 
 		for &en in gs.entities {
 			#partial switch en.kind {
@@ -713,21 +583,21 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 		for &en in gs.entities {
 			if en.kind == .player {
-				ui_base_pos := v2{-1000, 600}
+				ui_base_pos := v2{-220, 120}
 
                 exp_needed := calculate_exp_for_level(en.level)
                 current_exp := en.experience
 				level_text := fmt.tprintf("Current Level: %d - (%d/%d)", en.level, current_exp,  exp_needed)
-				draw_text(ui_base_pos, level_text, scale = 2.0)
+				draw_text(ui_base_pos, level_text, scale = 0.4)
 
 				currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-				draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
+				draw_text(ui_base_pos + v2{0, -10}, currency_text, scale = 0.4)
 
 				health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
-				draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
+				draw_text(ui_base_pos + v2{0, -20}, health_text, scale = 0.4)
 
 				enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
-                draw_text(ui_base_pos + v2{0, -150}, enemies_remaining_text, scale = 2.0)
+                draw_text(ui_base_pos + v2{0, -30}, enemies_remaining_text, scale = 0.4)
 				break
 			}
 		}
@@ -744,7 +614,8 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	       draw_text(text.pos, text.text, scale = 1.5, color = color)
 	    }
 	case .PAUSED:
-		draw_tiles(gs, player)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
+
 		for &en in gs.entities {
 			#partial switch en.kind {
 			case .player:
@@ -766,14 +637,13 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	case .GAME_OVER:
 	   draw_game_over_screen(gs)
     case .QUESTS:
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
         for en in gs.entities {
             if en.kind == .player {
                 player = en
                 break
             }
         }
-
-        draw_tiles(gs, player)
 
         for &en in gs.entities {
             #partial switch en.kind {
@@ -822,14 +692,13 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
         draw_quest_menu(gs)
     case .SKILLS:
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
         for en in gs.entities {
             if en.kind == .player {
                 player = en
                 break
             }
         }
-
-        draw_tiles(gs, player)
 
         for &en in gs.entities {
             #partial switch en.kind {
@@ -931,25 +800,25 @@ draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
 }
 
 screen_to_world_pos :: proc(screen_pos: Vector2) -> Vector2 {
-    map_width := f32(WORLD_W * TILE_LENGTH)
-    map_height := f32(WORLD_H * TILE_LENGTH)
+    map_width := 512.0
+    map_height := 256.0
 
-    scale_x := f32(window_w) / map_width
-    scale_y := f32(window_h) / map_height
+    scale_x := f32(window_w) / auto_cast map_width
+    scale_y := f32(window_h) / auto_cast map_height
     scale := min(scale_x, scale_y)
 
-    viewport_width := map_width * scale
-    viewport_height := map_height * scale
-    offset_x := (f32(window_w) - viewport_width) * 0.5
-    offset_y := (f32(window_h) - viewport_height) * 0.5
+    viewport_width := auto_cast map_width * auto_cast scale
+    viewport_height := auto_cast map_height * auto_cast scale
+    offset_x := (f32(window_w) - auto_cast viewport_width) * 0.5
+    offset_y := (f32(window_h) - auto_cast viewport_height) * 0.5
 
     adjusted_x := (screen_pos.x - offset_x) / scale
     adjusted_y := (screen_pos.y - offset_y) / scale
 
-    world_x := adjusted_x - map_width * 0.5
-    world_y := map_height * 0.5 - adjusted_y
+    world_x := adjusted_x - auto_cast map_width * 0.5
+    world_y := auto_cast map_height * 0.5 - auto_cast adjusted_y
 
-    return Vector2{world_x, world_y}
+    return Vector2{world_x, auto_cast world_y}
 }
 
 //

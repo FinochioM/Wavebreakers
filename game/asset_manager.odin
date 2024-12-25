@@ -14,6 +14,7 @@ import stbtt "vendor:stb/truetype"
 //
 Image_Id :: enum {
 	nil,
+	background_map,
 	player_attack1,
 	player_attack2,
 	player_attack3,

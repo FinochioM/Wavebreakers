@@ -2,8 +2,8 @@ package main
 
 import "core:fmt"
 
-MENU_BUTTON_WIDTH :: 200.0
-MENU_BUTTON_HEIGHT :: 50.0
+MENU_BUTTON_WIDTH :: 40.0
+MENU_BUTTON_HEIGHT :: 20.0
 PAUSE_MENU_BUTTON_WIDTH :: 200.0
 PAUSE_MENU_BUTTON_HEIGHT :: 50.0
 PAUSE_MENU_SPACING :: 20.0
@@ -25,7 +25,7 @@ QUEST_ENTRY_HEIGHT :: 80.0
 QUEST_ENTRY_PADDING :: 10.0
 
 draw_menu :: proc(gs: ^Game_State) {
-	play_button := make_centered_button(100, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
+	play_button := make_centered_button(1, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
 
     if draw_button(play_button){
         start_new_game(gs)
@@ -280,7 +280,7 @@ make_centered_button :: proc(
 			y_pos + height * 0.5,
 		},
 		text = text,
-		text_scale = 2.0,
+		text_scale = 0.5,
 		color = color,
 	}
 }

@@ -585,13 +585,13 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
     if gs.wave_spawn_timer <= 0 && gs.enemies_to_spawn > 0 {
         enemy := entity_create(gs)
         if enemy != nil {
-            map_width := f32(WORLD_W * TILE_LENGTH)
+            map_width := 512.0
             screen_half_width := map_width * 0.5
             spawn_position := screen_half_width + SPAWN_MARGIN
 
             spawn_x := rand.float32_range(
-                rand.float32_range(spawn_position, spawn_position + SPAWN_MARGIN * 1.2),
-                spawn_position + SPAWN_MARGIN * 1.2,
+                rand.float32_range(auto_cast spawn_position, auto_cast spawn_position + SPAWN_MARGIN * 1.2),
+                auto_cast spawn_position + SPAWN_MARGIN * 1.2,
             )
 
             setup_enemy(enemy, v2{spawn_x, -550}, gs.current_wave_difficulty)
