@@ -6,12 +6,12 @@ import "core:math/rand"
 import "core:math"
 import "core:fmt"
 
-CHAIN_REACTION_RANGE :: 200.0
+CHAIN_REACTION_RANGE :: 20.0
 CHAIN_REACTION_DAMAGE_MULT :: 0.5
 
 ENERGY_FIELD_MAX_CHARGE :: 100
 ENERGY_FIELD_CHARGE_PER_HIT :: 10
-ENERGY_FIELD_RANGE :: 300.0
+ENERGY_FIELD_RANGE :: 30.0
 ENERGY_FIELD_DAMAGE_MULT :: 2.0
 
 PROJECTILE_MASTER_SHOT_COUNT :: 3
@@ -22,20 +22,21 @@ CRITICAL_CASCADE_RELOAD_CHANCE :: 0.5
 spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color := COLOR_WHITE){
     text_copy := strings.clone(text, context.allocator)
     append(&gs.floating_texts, Floating_Text{
-        pos = pos + v2{0, 75},
+        pos = pos + v2{0, 15},
         text = text_copy,
         lifetime = 1.2,
         max_lifetime = 1.2,
-        velocity = v2{0, 5},
+        velocity = v2{0, 1},
         color = color,
     })
 }
 
-ENEMY_ATTACK_RANGE :: 100.0
+ENEMY_ATTACK_RANGE :: 20.0
 ENEMY_ATTACK_COOLDOWN :: 2.0
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation{
-	   en.speed = min(en.speed * (1 + delta_t), 100.0) //slow down and gradually recover the speed
+	   last_speed := en.speed
+	   en.speed = min(en.speed * (1 + delta_t), last_speed)
 	}
 
 	if en.target == nil {
@@ -133,7 +134,7 @@ find_enemies_in_range :: proc(gs: ^Game_State, source_pos: Vector2, range: f32) 
 	return targets[:]
 }
 
-PROJECTILE_SPEED :: 600.0
+PROJECTILE_SPEED :: 500.0
 PROJECTILE_SIZE :: v2{32, 32}
 PROJECTILE_GRAVITY :: 980.0
 PROJECTILE_INITIAL_Y_VELOCITY :: 400.0
@@ -157,7 +158,7 @@ calculate_intercept_point :: proc(
 
 
 	// Since we have a parabole effect, gonna use quadratic equation to solve intersection point
-	effective_speed := f32(600.0)
+	effective_speed := f32(500.0)
 
 	a := linalg.length2(target_velocity) - effective_speed * effective_speed
 	b := 2 * linalg.dot(to_target, target_velocity)
@@ -187,7 +188,7 @@ setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: 
 	e.flags |= {.allocated}
     e.is_multishot = is_multishot
 
-	player_height := 32.0 * 5.0
+	player_height := 16.0
 	spawn_position := pos + v2{0, auto_cast player_height * 0.5}
 	e.pos = spawn_position
 	e.prev_pos = spawn_position
@@ -518,7 +519,7 @@ heal_player :: proc(player: ^Entity, amount: int) {
 
 //
 // :waves
-SPAWN_MARGIN :: 100 // Some margin for the enemies to spawn on the right side of the screen (OUTSIDE)
+SPAWN_MARGIN :: 5 // Some margin for the enemies to spawn on the right side of the screen (OUTSIDE)
 WAVE_SPAWN_RATE :: 2.0 // Time between enemy spawns
 
 init_wave_config :: proc() -> Wave_Config{
@@ -590,11 +591,11 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
             spawn_position := screen_half_width + SPAWN_MARGIN
 
             spawn_x := rand.float32_range(
-                rand.float32_range(auto_cast spawn_position, auto_cast spawn_position + SPAWN_MARGIN * 1.2),
-                auto_cast spawn_position + SPAWN_MARGIN * 1.2,
+                rand.float32_range(auto_cast spawn_position, auto_cast spawn_position + SPAWN_MARGIN * 0.2),
+                auto_cast spawn_position + SPAWN_MARGIN * 0.2,
             )
 
-            setup_enemy(enemy, v2{spawn_x, -550}, gs.current_wave_difficulty)
+            setup_enemy(enemy, v2{spawn_x, -115}, gs.current_wave_difficulty)
             gs.active_enemies += 1
         }
 

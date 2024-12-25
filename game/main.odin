@@ -255,7 +255,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 
     base_health := 15 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
-    base_speed := 100.0 - f32(e.enemy_type - 1) * 10.0
+    base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
 
     config := app_state.game.wave_config
     wave_num_32 := f32(app_state.game.wave_number)
@@ -326,7 +326,7 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 //
 // :sim
 
-FOV_RANGE :: 1200.0 // Range in which the player can detect enemies
+FOV_RANGE :: 350.0 // Range in which the player can detect enemies
 
 start_new_game :: proc(gs: ^Game_State) {
     for &en in gs.entities {
@@ -502,7 +502,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 						if !(.allocated in target.flags) do continue
 
 						dist := linalg.length(target.pos - en.pos)
-						collision_radius := target.enemy_type == 10 ? 200.0 : 100
+						collision_radius := target.enemy_type == 10 ? 100.0 : 25.0
 						if auto_cast dist <= collision_radius {
 							when_projectile_hits_enemy(gs, &en, &target)
 							entity_destroy(gs, &en)
@@ -611,7 +611,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	       text_alpha := text.lifetime / text.max_lifetime
 	       color := text.color
 	       color.w = text_alpha
-	       draw_text(text.pos, text.text, scale = 1.5, color = color)
+	       draw_text(text.pos, text.text, scale = 0.4, color = color)
 	    }
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
 	case .PAUSED:

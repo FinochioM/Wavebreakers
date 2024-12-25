@@ -7,8 +7,8 @@ MENU_BUTTON_HEIGHT :: 20.0
 PAUSE_MENU_BUTTON_WIDTH :: 50.0
 PAUSE_MENU_BUTTON_HEIGHT :: 20.0
 PAUSE_MENU_SPACING :: 10.0
-WAVE_BUTTON_WIDTH :: 200.0
-WAVE_BUTTON_HEIGHT :: 50.0
+WAVE_BUTTON_WIDTH :: 45.0
+WAVE_BUTTON_HEIGHT :: 15.0
 
 SKILLS_BUTTON_WIDTH :: 30.0
 SKILLS_BUTTON_HEIGHT :: 10.0
@@ -204,7 +204,7 @@ draw_wave_button :: proc(gs: ^Game_State){
                     button_pos.y + WAVE_BUTTON_HEIGHT * 0.5,
                 },
                 text = fmt.tprintf("Start Wave %d", gs.wave_number),
-                text_scale = 2.0,
+                text_scale = 0.4,
                 color = v4{0.2, 0.6, 0.2, 1.0},
             }
 
