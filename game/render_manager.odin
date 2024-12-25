@@ -24,8 +24,6 @@ draw_sprite :: proc(
 	xform0 *= xform
 	xform0 *= xform_translate(size * -scale_from_pivot(pivot))
 
-	xform0 *= xform_scale(v2{1,-1})
-
 	draw_rect_xform(
 		xform0,
 		size,

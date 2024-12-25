@@ -169,7 +169,7 @@ setup_player :: proc(e: ^Entity) {
 	e.kind = .player
 	e.flags |= {.allocated}
 
-	e.pos = v2{-900, -550}
+	e.pos = v2{-200, -115}
 	e.animations = create_animation_collection()
 
     idle_frames: []Image_Id = {.player_idle1, .player_idle2, .player_idle3, .player_idle4, .player_idle5, .player_idle6, .player_idle7, .player_idle8}
@@ -185,8 +185,8 @@ setup_player :: proc(e: ^Entity) {
     if app_state.game.active_quest != nil && app_state.game.active_quest.? == .Risk_Reward {
         current_health := e.health
         current_damage := e.damage
-        e.health = current_health / 2 // half of the current health of the player
-        e.max_health = e.max_health / 2 // half of the starting max health
+        e.health = current_health / 2
+        e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
 	   e.health = 50
@@ -558,7 +558,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
        // draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
 		draw_menu(gs)
 	case .PLAYING:
-        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
 		for en in gs.entities {
 			if en.kind == .player {
 				player = en
@@ -613,8 +613,9 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	       color.w = text_alpha
 	       draw_text(text.pos, text.text, scale = 1.5, color = color)
 	    }
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
 	case .PAUSED:
-        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
 
 		for &en in gs.entities {
 			#partial switch en.kind {
@@ -637,7 +638,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	case .GAME_OVER:
 	   draw_game_over_screen(gs)
     case .QUESTS:
-        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
         for en in gs.entities {
             if en.kind == .player {
                 player = en
@@ -661,22 +662,22 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
         for &en in gs.entities {
             if en.kind == .player {
-                ui_base_pos := v2{-1000, 600}
+				ui_base_pos := v2{-220, 120}
 
                 exp_needed := calculate_exp_for_level(en.level)
                 current_exp := en.experience
 				level_text := fmt.tprintf("Current Level: %d - (%d/%d)", en.level, current_exp,  exp_needed)
-				draw_text(ui_base_pos, level_text, scale = 2.0)
+				draw_text(ui_base_pos, level_text, scale = 0.4)
 
-                currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-                draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
+				currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+				draw_text(ui_base_pos + v2{0, -10}, currency_text, scale = 0.4)
 
-                health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
-                draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
+				health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
+				draw_text(ui_base_pos + v2{0, -20}, health_text, scale = 0.4)
 
-                enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
-                draw_text(ui_base_pos + v2{0, -150}, enemies_remaining_text, scale = 2.0)
-                break
+				enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
+                draw_text(ui_base_pos + v2{0, -30}, enemies_remaining_text, scale = 0.4)
+				break
             }
         }
 
@@ -691,8 +692,9 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
         }
 
         draw_quest_menu(gs)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
     case .SKILLS:
-        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
         for en in gs.entities {
             if en.kind == .player {
                 player = en
@@ -717,25 +719,22 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
         for &en in gs.entities {
             if en.kind == .player {
-                ui_base_pos := v2{-1000, 600}
+				ui_base_pos := v2{-220, 120}
 
                 exp_needed := calculate_exp_for_level(en.level)
                 current_exp := en.experience
 				level_text := fmt.tprintf("Current Level: %d - (%d/%d)", en.level, current_exp,  exp_needed)
-				draw_text(ui_base_pos, level_text, scale = 2.0)
+				draw_text(ui_base_pos, level_text, scale = 0.4)
 
-                currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-                draw_text(ui_base_pos + v2{0, -50}, currency_text, scale = 2.0)
+				currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+				draw_text(ui_base_pos + v2{0, -10}, currency_text, scale = 0.4)
 
-                health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
-                draw_text(ui_base_pos + v2{0, -100}, health_text, scale = 2.0)
+				health_text := fmt.tprintf("Health: %d/%d", en.health, en.max_health)
+				draw_text(ui_base_pos + v2{0, -20}, health_text, scale = 0.4)
 
-                enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
-                draw_text(ui_base_pos + v2{0, -150}, enemies_remaining_text, scale = 2.0)
-
-                stats_pos := v2{600, 600}
-                draw_debug_stats(&en, stats_pos)
-                break
+				enemies_remaining_text := fmt.tprintf("Enemies: %d/%d", gs.active_enemies, gs.enemies_to_spawn)
+                draw_text(ui_base_pos + v2{0, -30}, enemies_remaining_text, scale = 0.4)
+				break
             }
         }
 
@@ -743,16 +742,17 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
             text_alpha := text.lifetime / text.max_lifetime
             color := text.color
             color.w = text_alpha
-            draw_text(text.pos, text.text, scale = 1.5, color = color)
+            draw_text(text.pos, text.text, scale = 0.4, color = color)
         }
 
         draw_skills_menu(gs)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
 	}
 }
 
 draw_player :: proc(en: ^Entity) {
     xform := Matrix4(1)
-    xform *= xform_scale(v2{4, 4})
+    xform *= xform_scale(v2{0.62, 0.62})
 
     draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
 }
@@ -769,9 +769,9 @@ draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
 	xform := Matrix4(1)
 
 	if en.enemy_type == 10{
-	   xform *= xform_scale(v2{5,5})
+	   xform *= xform_scale(v2{3,3})
 	}else{
-	   xform *= xform_scale(v2{4, 4})
+	   xform *= xform_scale(v2{0.7, 0.7})
 	}
 
 	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
@@ -794,7 +794,7 @@ draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
 
     xform := Matrix4(1)
     xform *= xform_rotate(final_angle)
-    xform *= xform_scale(v2{3,3})
+    xform *= xform_scale(v2{0.62,0.62})
 
     draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
 }

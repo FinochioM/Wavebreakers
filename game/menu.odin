@@ -4,21 +4,21 @@ import "core:fmt"
 
 MENU_BUTTON_WIDTH :: 40.0
 MENU_BUTTON_HEIGHT :: 20.0
-PAUSE_MENU_BUTTON_WIDTH :: 200.0
-PAUSE_MENU_BUTTON_HEIGHT :: 50.0
-PAUSE_MENU_SPACING :: 20.0
+PAUSE_MENU_BUTTON_WIDTH :: 50.0
+PAUSE_MENU_BUTTON_HEIGHT :: 20.0
+PAUSE_MENU_SPACING :: 10.0
 WAVE_BUTTON_WIDTH :: 200.0
 WAVE_BUTTON_HEIGHT :: 50.0
 
-SKILLS_BUTTON_WIDTH :: 150.0
-SKILLS_BUTTON_HEIGHT :: 40.0
+SKILLS_BUTTON_WIDTH :: 30.0
+SKILLS_BUTTON_HEIGHT :: 10.0
 SKILLS_PANEL_WIDTH :: 400.0
 SKILLS_PANEL_HEIGHT :: 600.0
 SKILL_ENTRY_HEIGHT :: 60.0
 SKILL_ENTRY_PADDING :: 10.0
 
-QUEST_BUTTON_WIDTH :: 150.0
-QUEST_BUTTON_HEIGHT :: 40.0
+QUEST_BUTTON_WIDTH :: 30.0
+QUEST_BUTTON_HEIGHT :: 10.0
 QUEST_PANEL_WIDTH :: 800.0
 QUEST_PANEL_HEIGHT :: 600.0
 QUEST_ENTRY_HEIGHT :: 80.0
@@ -62,8 +62,8 @@ draw_pause_menu :: proc(gs: ^Game_State) {
 draw_shop_menu :: proc(gs: ^Game_State) {
     draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-    panel_width := 1000.0
-    panel_height := 700.0
+    panel_width := 512.0
+    panel_height := 256.0
     panel_x := -panel_width * 0.5
     panel_y := -panel_height * 0.5
 
@@ -76,12 +76,12 @@ draw_shop_menu :: proc(gs: ^Game_State) {
     player := find_player(gs)
     if player == nil do return
 
-    title_pos := v2{auto_cast panel_x + 50, auto_cast panel_y + auto_cast panel_height - 80}
-    draw_text(title_pos, "Shop", scale = 3.0)
+    title_pos := v2{auto_cast panel_x + 150, auto_cast panel_y + auto_cast panel_height - 80}
+    draw_text(title_pos, "Shop", scale = 1.2)
 
-    currency_pos := v2{auto_cast panel_x + auto_cast panel_width - 300, auto_cast panel_y + auto_cast panel_height - 80}
+    currency_pos := v2{auto_cast panel_x + auto_cast panel_width, auto_cast panel_y + auto_cast panel_height - 80}
     currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-    draw_text(currency_pos, currency_text, scale = 2.0)
+    draw_text(currency_pos, currency_text, scale = 0.7)
 
     column_count := 2
     items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
@@ -89,7 +89,7 @@ draw_shop_menu :: proc(gs: ^Game_State) {
     content_width := panel_width - 160
     column_width := auto_cast content_width / auto_cast column_count
 
-    button_spacing_y := 100.0
+    button_spacing_y := 20.0
 
     total_height := f32(items_per_column) * auto_cast button_spacing_y
     start_y := panel_y + panel_height - 150
@@ -121,7 +121,7 @@ draw_shop_menu :: proc(gs: ^Game_State) {
                 auto_cast y_pos + PAUSE_MENU_BUTTON_HEIGHT - 10,
             },
             text = button_text,
-            text_scale = 2.0,
+            text_scale = 0.4,
             color = button_color,
         }
 
@@ -144,11 +144,11 @@ draw_shop_menu :: proc(gs: ^Game_State) {
 
         name_pos := v2{auto_cast x_pos, auto_cast y_pos + 45}
         upgrade_text := fmt.tprintf("%v (Level %d)", upgrade, level)
-        draw_text(name_pos, upgrade_text, scale = 1.5)
+        draw_text(name_pos, upgrade_text, scale = 0.4)
 
         if level >= MAX_UPGRADE_LEVEL {
             max_pos := v2{auto_cast x_pos + PAUSE_MENU_BUTTON_WIDTH + 10, auto_cast y_pos + 5}
-            draw_text(max_pos, "MAX", scale = 1.5, color = v4{1, 0.8, 0, 1})
+            draw_text(max_pos, "MAX", scale = 0.4, color = v4{1, 0.8, 0, 1})
         }
     }
 
@@ -192,7 +192,7 @@ draw_game_over_screen :: proc(gs: ^Game_State){
 }
 
 draw_wave_button :: proc(gs: ^Game_State){
-    button_pos := v2{0, -250}
+    button_pos := v2{0, 0}
 
     #partial switch gs.wave_status {
         case .WAITING:
@@ -271,6 +271,7 @@ make_centered_button :: proc(
 	text: string,
 	color := v4{0.2, 0.3, 0.8, 1.0},
 	x_offset := f32(0),
+	text_scale := f32(0.5),
 ) -> Button {
 	return Button {
 		bounds = {
@@ -280,14 +281,12 @@ make_centered_button :: proc(
 			y_pos + height * 0.5,
 		},
 		text = text,
-		text_scale = 0.5,
+		text_scale = text_scale,
 		color = color,
 	}
 }
 
 draw_skills_button :: proc(gs: ^Game_State){
-    button_pos := v2{600, 500}
-
     if gs.state_kind != .PLAYING do return
 
     player := find_player(gs)
@@ -304,12 +303,13 @@ draw_skills_button :: proc(gs: ^Game_State){
     if !has_unlocked_skills do return
 
 	button := make_centered_button(
-		600,
+		120,
 		SKILLS_BUTTON_WIDTH,
 		SKILLS_BUTTON_HEIGHT,
 		"Skills",
-		x_offset = 	SKILLS_BUTTON_WIDTH + PAUSE_MENU_SPACING,
-		color = v4{0.5, 0.1, 0.8, 1.0}
+		x_offset = SKILLS_BUTTON_WIDTH + PAUSE_MENU_SPACING,
+		color = v4{0.5, 0.1, 0.8, 1.0},
+		text_scale = 0.4
 	)
 
     if draw_button(button){
@@ -319,12 +319,13 @@ draw_skills_button :: proc(gs: ^Game_State){
 
 draw_shop_button :: proc(gs: ^Game_State){
 	shop_button := make_centered_button(
-		600,
+		120,
 		SKILLS_BUTTON_WIDTH,
 		SKILLS_BUTTON_HEIGHT,
 		"Shop",
 		x_offset = 0,
 		color = v4{0.5, 0.1, 0.8, 1.0},
+		text_scale = 0.4
 	)
 
 	if draw_button(shop_button) {
@@ -351,12 +352,13 @@ draw_quest_button :: proc(gs: ^Game_State) {
     }
 
     quest_button := make_centered_button(
-        600,
+        120,
         QUEST_BUTTON_WIDTH,
         QUEST_BUTTON_HEIGHT,
         "Quests",
         x_offset = -(QUEST_BUTTON_WIDTH + PAUSE_MENU_SPACING),
         color = button_color,
+        text_scale = 0.4
     )
 
     if draw_button(quest_button) && has_available_quests {
