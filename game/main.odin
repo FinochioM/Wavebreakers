@@ -123,7 +123,7 @@ CRIT_CHANCE_PER_LEVEL :: 0.05
 CRIT_DAMAGE_PER_LEVEL :: 0.1
 MULTISHOT_CHANCE_PER_LEVEL :: 0.075
 DODGE_CHANCE_PER_LEVEL :: 0.03
-FOV_RANGE_BONUS_PER_LEVEL :: 50.0
+FOV_RANGE_BONUS_PER_LEVEL :: 2.0
 HEALTH_REGEN_PER_LEVEL :: 0.9
 
 FIRST_BOSS_WAVE :: 10
@@ -1669,12 +1669,10 @@ init_ui_hot_reload :: proc() -> UI_Hot_Reload {
         },
     }
 
-    // Create initial config file if it doesn't exist
     if !os.exists(hr.config_path) {
         save_ui_config(&hr)
     }
 
-    // Load initial config
     load_ui_config(&hr)
     return hr
 }
@@ -1703,7 +1701,6 @@ load_ui_config :: proc(hr: ^UI_Hot_Reload) {
         return
     }
 
-    // Update last modified time
     if file_info, err := os.stat(hr.config_path); err == 0 {
         hr.last_modified_time = file_info.modification_time
     }
@@ -1718,7 +1715,6 @@ check_and_reload :: proc(hr: ^UI_Hot_Reload) {
     }
 }
 
-// Helper to get current config
 get_ui_config :: proc(hr: ^UI_Hot_Reload) -> UI_Config {
     return hr.config
 }
