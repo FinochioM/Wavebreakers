@@ -1,5 +1,10 @@
 package main
 
+import "core:os"
+import "core:encoding/json"
+import "core:strings"
+import "core:fmt"
+import "core:time"
 
 Button :: struct {
 	bounds:     AABB,
@@ -60,6 +65,7 @@ Game_State :: struct {
     quests: map[Quest_Kind]Quest,
     active_quest: Maybe(Quest_Kind),
     quest_scroll_offset: f32,
+    ui_hot_reload: UI_Hot_Reload,
 }
 
 Enemy_Target :: struct {
@@ -238,4 +244,66 @@ Animation :: struct {
 Animation_Collection :: struct {
     animations: map[string]Animation,
     current_animation: string,
+}
+
+UI_Config :: struct {
+    // General menu sizing
+    menu_button_width: f32,
+    menu_button_height: f32,
+    pause_menu_button_width: f32,
+    pause_menu_button_height: f32,
+    pause_menu_spacing: f32,
+
+    // Wave button
+    wave_button_width: f32,
+    wave_button_height: f32,
+
+    // Skills menu
+    skills_button_width: f32,
+    skills_button_height: f32,
+    skills_panel_width: f32,
+    skills_panel_height: f32,
+    skill_entry_height: f32,
+    skill_entry_padding: f32,
+
+    // Quest menu
+    quest_button_width: f32,
+    quest_button_height: f32,
+    quest_panel_width: f32,
+    quest_panel_height: f32,
+    quest_entry_height: f32,
+    quest_entry_padding: f32,
+
+    // Shop menu specific
+    shop_panel_width: f32,
+    shop_panel_height: f32,
+    shop_title_offset_x: f32,
+    shop_title_offset_y: f32,
+    shop_content_padding: f32,
+    shop_button_spacing_y: f32,
+    shop_row_start_offset: f32,
+    shop_column_start_offset: f32,
+    shop_text_scale_title: f32,
+    shop_text_scale_currency: f32,
+    shop_text_scale_button: f32,
+    shop_text_scale_upgrade: f32,
+    shop_button_width: f32,
+    shop_button_height: f32,
+    shop_button_vertical_padding: f32,
+    shop_upgrade_text_offset_y: f32,
+    shop_max_text_offset_x: f32,
+    shop_max_text_offset_y: f32,
+    shop_back_button_offset_y: f32,
+    shop_back_button_width: f32,
+    shop_back_button_height: f32,
+    shop_back_button_text_scale: f32,
+    shop_currency_text_offset_x: f32,
+    shop_currency_text_offset_y: f32,
+    shop_currency_text_scale: f32,
+}
+
+UI_Hot_Reload :: struct {
+    config: UI_Config,
+    config_path: string,
+    last_modified_time: time.Time,
 }

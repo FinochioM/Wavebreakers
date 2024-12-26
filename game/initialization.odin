@@ -115,6 +115,8 @@ frame_init :: proc "c" () {
 
 	reset_input_state_for_next_frame(&app_state.input_state)
 
+    check_and_reload(&app_state.game.ui_hot_reload)
+
 	for i in 0 ..< draw_frame.sucffed_deferred_quad_count {
 		draw_frame.quads[draw_frame.quad_count] = draw_frame.scuffed_deferred_quads[i]
 		draw_frame.quad_count += 1

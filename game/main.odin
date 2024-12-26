@@ -10,6 +10,8 @@ import "core:mem"
 import "core:os"
 import "core:strings"
 import t "core:time"
+import "core:encoding/json"
+import "core:time"
 
 
 import sapp "../sokol/app"
@@ -72,6 +74,8 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 
 
     gs.wave_config = init_wave_config()
+
+    gs.ui_hot_reload = init_ui_hot_reload()
 
 	init_game_systems(gs)
 }
@@ -1588,4 +1592,116 @@ load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id,
     }
 
     return frames[:], true
+}
+
+init_ui_hot_reload :: proc() -> UI_Hot_Reload {
+    hr := UI_Hot_Reload{
+        config_path = "A:/Desarrollos/1WeekGame/game/config/ui_config.json",
+        config = UI_Config{
+            // General menu
+            menu_button_width = 40.0,
+            menu_button_height = 20.0,
+            pause_menu_button_width = 50.0,
+            pause_menu_button_height = 20.0,
+            pause_menu_spacing = 10.0,
+
+            // Wave button
+            wave_button_width = 45.0,
+            wave_button_height = 15.0,
+
+            // Shop menu
+            shop_panel_width = 512.0,
+            shop_panel_height = 256.0,
+            shop_title_offset_x = 150.0,
+            shop_title_offset_y = 80.0,
+            shop_content_padding = 160.0,
+            shop_button_spacing_y = 20.0,
+            shop_row_start_offset = 150.0,
+            shop_column_start_offset = 80.0,
+            shop_text_scale_title = 1.2,
+            shop_text_scale_currency = 0.7,
+            shop_text_scale_button = 0.4,
+            shop_text_scale_upgrade = 0.4,
+            shop_button_width = 50.0,
+            shop_button_height = 20.0,
+            shop_button_vertical_padding = 10.0,
+            shop_upgrade_text_offset_y = 45.0,
+            shop_max_text_offset_x = 10.0,
+            shop_max_text_offset_y = 5.0,
+            shop_back_button_offset_y = 80.0,
+            shop_back_button_width = 0.0,
+            shop_back_button_height = 0.0,
+            shop_back_button_text_scale = 0.0,
+            shop_currency_text_offset_x = 0.0,
+            shop_currency_text_offset_y = 0.0,
+            shop_currency_text_scale = 0.0,
+
+            skills_button_width = 30.0,
+            skills_button_height = 10.0,
+            skills_panel_width = 400.0,
+            skills_panel_height = 600.0,
+            skill_entry_height = 60.0,
+            skill_entry_padding = 10.0,
+
+            quest_button_width = 30.0,
+            quest_button_height = 10.0,
+            quest_panel_width = 800.0,
+            quest_panel_height = 600.0,
+            quest_entry_height = 80.0,
+            quest_entry_padding = 10.0,
+        },
+    }
+
+    // Create initial config file if it doesn't exist
+    if !os.exists(hr.config_path) {
+        save_ui_config(&hr)
+    }
+
+    // Load initial config
+    load_ui_config(&hr)
+    return hr
+}
+
+save_ui_config :: proc(hr: ^UI_Hot_Reload) {
+    data, err := json.marshal(hr.config)
+    if err != nil {
+        fmt.println("Error marshaling config:", err)
+        return
+    }
+
+    os.write_entire_file(hr.config_path, data)
+}
+
+
+load_ui_config :: proc(hr: ^UI_Hot_Reload) {
+    data, ok := os.read_entire_file(hr.config_path)
+    if !ok {
+        fmt.println("Could not read config file")
+        return
+    }
+
+    err := json.unmarshal(data, &hr.config)
+    if err != nil {
+        fmt.println("Error unmarshaling config:", err)
+        return
+    }
+
+    // Update last modified time
+    if file_info, err := os.stat(hr.config_path); err == 0 {
+        hr.last_modified_time = file_info.modification_time
+    }
+}
+
+check_and_reload :: proc(hr: ^UI_Hot_Reload) {
+    if file_info, err := os.stat(hr.config_path); err == 0 {
+        if time.duration_seconds(time.diff(hr.last_modified_time, file_info.modification_time)) > 0 {
+            load_ui_config(hr)
+            fmt.println("Reloaded UI configuration")
+        }
+    }
+}
+
+// Helper to get current config
+get_ui_config :: proc(hr: ^UI_Hot_Reload) -> UI_Config {
+    return hr.config
 }

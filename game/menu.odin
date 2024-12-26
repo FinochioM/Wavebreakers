@@ -60,13 +60,18 @@ draw_pause_menu :: proc(gs: ^Game_State) {
 }
 
 draw_shop_menu :: proc(gs: ^Game_State) {
+    config := get_ui_config(&gs.ui_hot_reload)
+
+    // Background overlay
     draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-    panel_width := 512.0
-    panel_height := 256.0
+    // Panel setup
+    panel_width := config.shop_panel_width
+    panel_height := config.shop_panel_height
     panel_x := -panel_width * 0.5
     panel_y := -panel_height * 0.5
 
+    // Main panel
     draw_rect_aabb(
         v2{auto_cast panel_x, auto_cast panel_y},
         v2{auto_cast panel_width, auto_cast panel_height},
@@ -76,37 +81,43 @@ draw_shop_menu :: proc(gs: ^Game_State) {
     player := find_player(gs)
     if player == nil do return
 
-    title_pos := v2{auto_cast panel_x + 150, auto_cast panel_y + auto_cast panel_height - 80}
-    draw_text(title_pos, "Shop", scale = 1.2)
+    // Title and currency
+    title_pos := v2{
+        auto_cast panel_x + config.shop_title_offset_x,
+        auto_cast panel_y + auto_cast panel_height - config.shop_title_offset_y
+    }
+    draw_text(title_pos, "Shop", scale = f64(config.shop_text_scale_title))
 
-    currency_pos := v2{auto_cast panel_x + auto_cast panel_width, auto_cast panel_y + auto_cast panel_height - 80}
+    currency_pos := v2{
+        auto_cast panel_x + auto_cast panel_width,
+        auto_cast panel_y + auto_cast panel_height - config.shop_title_offset_y
+    }
     currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-    draw_text(currency_pos, currency_text, scale = 0.7)
+    draw_text(currency_pos, currency_text, scale = f64(config.shop_text_scale_currency))
 
+    // Column layout
     column_count := 2
     items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
-
-    content_width := panel_width - 160
+    content_width := panel_width - config.shop_content_padding
     column_width := auto_cast content_width / auto_cast column_count
-
-    button_spacing_y := 20.0
-
+    button_spacing_y := config.shop_button_spacing_y
     total_height := f32(items_per_column) * auto_cast button_spacing_y
-    start_y := panel_y + panel_height - 150
+    start_y := panel_y + panel_height - config.shop_row_start_offset
 
+    // Draw upgrade buttons
     for upgrade, i in Upgrade_Kind {
         column := i / items_per_column
         row := i % items_per_column
 
-        base_x := panel_x + 80 + (column_width * auto_cast column)
-        x_pos := base_x + (column_width - PAUSE_MENU_BUTTON_WIDTH) * 0.5
+        base_x := panel_x + config.shop_column_start_offset + (column_width * auto_cast column)
+        x_pos := base_x + (column_width - config.shop_button_width) * 0.5
         y_pos := start_y - auto_cast row * auto_cast button_spacing_y
 
         level := get_upgrade_level(player, upgrade)
         cost := calculate_upgrade_cost(level)
-
         button_text := fmt.tprintf("Cost: %d", cost)
         button_color := v4{0.2, 0.3, 0.8, 1.0}
+
         if level >= MAX_UPGRADE_LEVEL {
             button_color = v4{0.4, 0.4, 0.4, 1.0}
         } else if gs.currency_points < cost {
@@ -116,12 +127,12 @@ draw_shop_menu :: proc(gs: ^Game_State) {
         button := Button{
             bounds = {
                 auto_cast x_pos,
-                auto_cast y_pos - 10,
-                auto_cast x_pos + PAUSE_MENU_BUTTON_WIDTH,
-                auto_cast y_pos + PAUSE_MENU_BUTTON_HEIGHT - 10,
+                auto_cast y_pos - config.shop_button_vertical_padding,
+                auto_cast x_pos + config.shop_button_width,
+                auto_cast y_pos + config.shop_button_height - config.shop_button_vertical_padding,
             },
             text = button_text,
-            text_scale = 0.4,
+            text_scale = config.shop_text_scale_button,
             color = button_color,
         }
 
@@ -130,37 +141,34 @@ draw_shop_menu :: proc(gs: ^Game_State) {
                 try_purchase_upgrade(gs, player, upgrade)
             }
         }
-    }
 
-    for upgrade, i in Upgrade_Kind {
-        column := i / items_per_column
-        row := i % items_per_column
-
-        base_x := panel_x + 80 + (column_width * auto_cast column)
-        x_pos := base_x + (column_width - PAUSE_MENU_BUTTON_WIDTH) * 0.5
-        y_pos := start_y - auto_cast row * auto_cast button_spacing_y
-
-        level := get_upgrade_level(player, upgrade)
-
-        name_pos := v2{auto_cast x_pos, auto_cast y_pos + 45}
+        // Upgrade text
+        name_pos := v2{
+            auto_cast x_pos,
+            auto_cast y_pos + config.shop_upgrade_text_offset_y
+        }
         upgrade_text := fmt.tprintf("%v (Level %d)", upgrade, level)
-        draw_text(name_pos, upgrade_text, scale = 0.4)
+        draw_text(name_pos, upgrade_text, scale = f64(config.shop_text_scale_upgrade))
 
         if level >= MAX_UPGRADE_LEVEL {
-            max_pos := v2{auto_cast x_pos + PAUSE_MENU_BUTTON_WIDTH + 10, auto_cast y_pos + 5}
-            draw_text(max_pos, "MAX", scale = 0.4, color = v4{1, 0.8, 0, 1})
+            max_pos := v2{
+                auto_cast x_pos + config.shop_button_width + config.shop_max_text_offset_x,
+                auto_cast y_pos + config.shop_max_text_offset_y
+            }
+            draw_text(max_pos, "MAX", scale = f64(config.shop_text_scale_upgrade), color = v4{1, 0.8, 0, 1})
         }
     }
 
+    // Back button
     back_button := Button{
         bounds = {
-            auto_cast panel_x + auto_cast panel_width * 0.5 - PAUSE_MENU_BUTTON_WIDTH * 0.5,
-            auto_cast panel_y - 80,
-            auto_cast panel_x + auto_cast panel_width * 0.5 + PAUSE_MENU_BUTTON_WIDTH * 0.5,
-            auto_cast panel_y - 80 + PAUSE_MENU_BUTTON_HEIGHT,
+            auto_cast panel_x + auto_cast panel_width * 0.5 - config.shop_button_width * 0.5,
+            auto_cast panel_y - config.shop_back_button_offset_y,
+            auto_cast panel_x + auto_cast panel_width * 0.5 + config.shop_button_width * 0.5,
+            auto_cast panel_y - config.shop_back_button_offset_y + config.shop_button_height,
         },
         text = "Back",
-        text_scale = 2.0,
+        text_scale = config.shop_text_scale_title,
         color = v4{0.2, 0.3, 0.8, 1.0},
     }
 
