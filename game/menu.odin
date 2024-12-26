@@ -89,11 +89,11 @@ draw_shop_menu :: proc(gs: ^Game_State) {
     draw_text(title_pos, "Shop", scale = f64(config.shop_text_scale_title))
 
     currency_pos := v2{
-        auto_cast panel_x + auto_cast panel_width,
-        auto_cast panel_y + auto_cast panel_height - config.shop_title_offset_y
+        auto_cast panel_x + auto_cast panel_width - config.shop_currency_text_offset_x,
+        auto_cast panel_y + auto_cast panel_height - config.shop_currency_text_offset_y
     }
     currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-    draw_text(currency_pos, currency_text, scale = f64(config.shop_text_scale_currency))
+    draw_text(currency_pos, currency_text, scale = f64(config.shop_currency_text_scale))
 
     // Column layout
     column_count := 2
@@ -162,13 +162,13 @@ draw_shop_menu :: proc(gs: ^Game_State) {
     // Back button
     back_button := Button{
         bounds = {
-            auto_cast panel_x + auto_cast panel_width * 0.5 - config.shop_button_width * 0.5,
+            auto_cast panel_x + auto_cast panel_width * 0.5 - config.shop_back_button_width * 0.5,
             auto_cast panel_y - config.shop_back_button_offset_y,
-            auto_cast panel_x + auto_cast panel_width * 0.5 + config.shop_button_width * 0.5,
-            auto_cast panel_y - config.shop_back_button_offset_y + config.shop_button_height,
+            auto_cast panel_x + auto_cast panel_width * 0.5 + config.shop_back_button_width * 0.5,
+            auto_cast panel_y - config.shop_back_button_offset_y + config.shop_back_button_height,
         },
         text = "Back",
-        text_scale = config.shop_text_scale_title,
+        text_scale = config.shop_back_button_text_scale,
         color = v4{0.2, 0.3, 0.8, 1.0},
     }
 
@@ -228,7 +228,7 @@ draw_wave_button :: proc(gs: ^Game_State){
                     button_pos.y + WAVE_BUTTON_HEIGHT * 0.5,
                 },
                 text = fmt.tprintf("Start Wave %d", gs.wave_number + 1),
-                text_scale = 2.0,
+                text_scale = 0.4,
                 color = v4{0.2, 0.6, 0.2, 1.0},
             }
 
@@ -375,22 +375,27 @@ draw_quest_button :: proc(gs: ^Game_State) {
 }
 
 draw_skills_menu :: proc(gs: ^Game_State) {
+    config := get_ui_config(&gs.ui_hot_reload)
+
     panel_pos := v2{0, 0}
     panel_bounds := AABB{
-        panel_pos.x - SKILLS_PANEL_WIDTH * 0.5,
-        panel_pos.y - SKILLS_PANEL_HEIGHT * 0.5,
-        panel_pos.x + SKILLS_PANEL_WIDTH * 0.5,
-        panel_pos.y + SKILLS_PANEL_HEIGHT * 0.5,
+        panel_pos.x - config.skills_panel_width * 0.5,
+        panel_pos.y - config.skills_panel_height * 0.5,
+        panel_pos.x + config.skills_panel_width * 0.5,
+        panel_pos.y + config.skills_panel_height * 0.5,
     }
 
     draw_rect_aabb(
         v2{panel_bounds.x, panel_bounds.y},
-        v2{SKILLS_PANEL_WIDTH, SKILLS_PANEL_HEIGHT},
+        v2{config.skills_panel_width, config.skills_panel_height},
         col = v4{0.2, 0.2, 0.2, 0.9},
     )
 
-    title_pos := v2{panel_bounds.x + 20, panel_bounds.w + 20}
-    draw_text(title_pos, "Skills", scale = 2.5)
+    title_pos := v2{
+        panel_bounds.x + config.skills_title_offset_x,
+        panel_bounds.w - config.skills_title_offset_y
+    }
+    draw_text(title_pos, "Skills", scale = f64(config.skills_title_text_scale))
 
     unlocked_skills: [dynamic]Skill
     unlocked_skills.allocator = context.temp_allocator
@@ -401,34 +406,33 @@ draw_skills_menu :: proc(gs: ^Game_State) {
         }
     }
 
-    content_start_y := panel_bounds.w - 100
-    visible_height := panel_bounds.w - panel_bounds.y - 120
-    total_content_height := f32(len(unlocked_skills)) * (SKILL_ENTRY_HEIGHT + SKILL_ENTRY_PADDING)
+    content_start_y := panel_bounds.w - config.skills_content_top_offset
+    visible_height := panel_bounds.w - panel_bounds.y - config.skills_content_top_offset - config.skills_content_bottom_offset
+    total_content_height := f32(len(unlocked_skills)) * (config.skills_entry_height + config.skills_entry_spacing)
 
-    scroll_speed :: 50.0
     if key_down(app_state.input_state, .LEFT_MOUSE) {
         mouse_delta := app_state.input_state.mouse_pos.y - app_state.input_state.prev_mouse_pos.y
-        gs.skills_scroll_offset += mouse_delta * scroll_speed * sims_per_second
+        gs.skills_scroll_offset += mouse_delta * config.skills_scroll_speed * sims_per_second
     }
 
     max_scroll := max(0, total_content_height - visible_height)
     gs.skills_scroll_offset = clamp(gs.skills_scroll_offset, 0, max_scroll)
 
-    content_top := panel_bounds.w - 100
-    content_bottom := panel_bounds.y + 50
+    content_top := panel_bounds.w - config.skills_content_top_offset
+    content_bottom := panel_bounds.y + config.skills_content_bottom_offset
 
     for skill, i in unlocked_skills {
-        y_pos := content_start_y - f32(i) * (SKILL_ENTRY_HEIGHT + SKILL_ENTRY_PADDING) + gs.skills_scroll_offset
+        y_pos := content_start_y - f32(i) * (config.skills_entry_height + config.skills_entry_spacing) + gs.skills_scroll_offset
 
         if y_pos < content_bottom || y_pos > content_top {
             continue
         }
 
         entry_bounds := AABB{
-            panel_bounds.x + 10,
+            panel_bounds.x + config.skills_entry_padding_x,
             y_pos,
-            panel_bounds.z - 30,
-            y_pos + SKILL_ENTRY_HEIGHT,
+            panel_bounds.z - config.skills_entry_padding_x - config.skills_scrollbar_width,
+            y_pos + config.skills_entry_height,
         }
 
         is_active := gs.active_skill != nil && gs.active_skill.? == skill.kind
@@ -440,25 +444,28 @@ draw_skills_menu :: proc(gs: ^Game_State) {
             col = bg_color,
         )
 
-        text_pos := v2{entry_bounds.x + 10, entry_bounds.y + 10}
+        text_pos := v2{
+            entry_bounds.x + config.skills_entry_text_offset_x,
+            entry_bounds.y + config.skills_entry_text_offset_y
+        }
         draw_text(
             text_pos,
             fmt.tprintf("%v (Level %d)", skill.kind, skill.level),
-            scale = 1.5,
+            scale = f64(config.skills_entry_text_scale),
         )
 
         progress := get_skill_progress(skill)
-        progress_width := (entry_bounds.z - entry_bounds.x - 20) * progress
+        progress_width := (entry_bounds.z - entry_bounds.x - config.skills_progress_bar_padding_x * 2) * progress
         progress_bounds := AABB{
-            entry_bounds.x + 10,
-            entry_bounds.y + SKILL_ENTRY_HEIGHT - 15,
-            entry_bounds.x + 10 + progress_width,
-            entry_bounds.y + SKILL_ENTRY_HEIGHT - 5,
+            entry_bounds.x + config.skills_progress_bar_padding_x,
+            entry_bounds.y + config.skills_entry_height - config.skills_progress_bar_offset_bottom,
+            entry_bounds.x + config.skills_progress_bar_padding_x + progress_width,
+            entry_bounds.y + config.skills_entry_height - config.skills_progress_bar_offset_bottom + config.skills_progress_bar_height,
         }
 
         draw_rect_aabb(
-            v2{entry_bounds.x + 10, entry_bounds.y + SKILL_ENTRY_HEIGHT - 15},
-            v2{entry_bounds.z - entry_bounds.x - 20, 10},
+            v2{entry_bounds.x + config.skills_progress_bar_padding_x, entry_bounds.y + config.skills_entry_height - config.skills_progress_bar_offset_bottom},
+            v2{entry_bounds.z - entry_bounds.x - config.skills_progress_bar_padding_x * 2, config.skills_progress_bar_height},
             col = v4{0.2, 0.2, 0.2, 1.0},
         )
 
@@ -480,10 +487,10 @@ draw_skills_menu :: proc(gs: ^Game_State) {
 
     if total_content_height > visible_height {
         scrollbar_bounds := AABB{
-            panel_bounds.z - 20,
-            panel_bounds.y + 100,
-            panel_bounds.z - 10,
-            panel_bounds.w - 20,
+            panel_bounds.z - config.skills_scrollbar_width - config.skills_scrollbar_offset_right,
+            panel_bounds.y + config.skills_scrollbar_padding_y,
+            panel_bounds.z - config.skills_scrollbar_offset_right,
+            panel_bounds.w - config.skills_scrollbar_padding_y,
         }
 
         scroll_height := scrollbar_bounds.w - scrollbar_bounds.y
@@ -505,8 +512,8 @@ draw_skills_menu :: proc(gs: ^Game_State) {
 
     back_button := make_centered_button(
         panel_bounds.y + 25,
-        PAUSE_MENU_BUTTON_WIDTH,
-        PAUSE_MENU_BUTTON_HEIGHT,
+        config.pause_menu_button_width,
+        config.pause_menu_button_height,
         "Back",
     )
 
@@ -516,68 +523,72 @@ draw_skills_menu :: proc(gs: ^Game_State) {
 }
 
 draw_quest_menu :: proc(gs: ^Game_State) {
+    config := get_ui_config(&gs.ui_hot_reload)
+
     panel_pos := v2{0, 0}
     panel_bounds := AABB{
-        panel_pos.x - QUEST_PANEL_WIDTH * 0.5,
-        panel_pos.y - QUEST_PANEL_HEIGHT * 0.5,
-        panel_pos.x + QUEST_PANEL_WIDTH * 0.5,
-        panel_pos.y + QUEST_PANEL_HEIGHT * 0.5,
+        panel_pos.x - config.quest_panel_width * 0.5,
+        panel_pos.y - config.quest_panel_height * 0.5,
+        panel_pos.x + config.quest_panel_width * 0.5,
+        panel_pos.y + config.quest_panel_height * 0.5,
     }
 
     draw_rect_aabb(
         v2{panel_bounds.x, panel_bounds.y},
-        v2{QUEST_PANEL_WIDTH, QUEST_PANEL_HEIGHT},
+        v2{config.quest_panel_width, config.quest_panel_height},
         col = v4{0.2, 0.2, 0.2, 0.9},
     )
 
-    title_pos := v2{panel_bounds.x + 20, panel_bounds.w - 50}
-    draw_text(title_pos, "Quests", scale = 2.5)
+    // Title and currency
+    title_pos := v2{panel_bounds.x + config.quest_title_offset_x, panel_bounds.w - config.quest_title_offset_y}
+    draw_text(title_pos, "Quests", scale = f64(config.quest_title_scale))
 
-    currency_pos := v2{panel_bounds.z - 250, panel_bounds.w - 50}
-    draw_text(currency_pos, fmt.tprintf("Currency: %d", gs.currency_points), scale = 2.0)
+    currency_pos := v2{panel_bounds.z - config.quest_currency_offset_x, panel_bounds.w - config.quest_currency_offset_y}
+    draw_text(currency_pos, fmt.tprintf("Currency: %d", gs.currency_points), scale = f64(config.quest_currency_scale))
 
-    content_start_y := panel_bounds.w - 100
-    visible_height := panel_bounds.w - panel_bounds.y - 120
+    // Content area setup
+    content_start_y := panel_bounds.w - config.quest_content_top_offset
+    visible_height := panel_bounds.w - panel_bounds.y - config.quest_content_top_offset - config.quest_content_bottom_offset
 
     total_content_height: f32 = 0
     for category in Quest_Category {
-        total_content_height += 30.0
+        total_content_height += config.quest_category_spacing
         quest_count := 0
         for kind, info in QUEST_INFO {
             if info.category == category {
                 quest := gs.quests[kind]
                 if quest.state != .Locked {
-                    total_content_height += QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+                    total_content_height += config.quest_entry_height + config.quest_entry_padding
                     quest_count += 1
                 }
             }
         }
         if quest_count > 0 {
-            total_content_height += 30.0
+            total_content_height += config.quest_category_bottom_spacing
         }
     }
 
-    scroll_speed :: 50.0
     if key_down(app_state.input_state, .LEFT_MOUSE) {
         mouse_delta := app_state.input_state.mouse_pos.y - app_state.input_state.prev_mouse_pos.y
-        gs.quest_scroll_offset += mouse_delta * scroll_speed * sims_per_second
+        gs.quest_scroll_offset += mouse_delta * config.quest_scroll_speed * sims_per_second
     }
 
     max_scroll := max(0, total_content_height - visible_height)
     gs.quest_scroll_offset = clamp(gs.quest_scroll_offset, 0, max_scroll)
 
-    content_top := panel_bounds.w - 100
-    content_bottom := panel_bounds.y + 50
+    content_top := panel_bounds.w - config.quest_content_top_offset
+    content_bottom := panel_bounds.y + config.quest_content_bottom_offset
 
     current_y := content_start_y + gs.quest_scroll_offset
 
+    // Draw categories and quests
     for category in Quest_Category {
         if current_y < content_bottom || current_y > content_top {
-            current_y -= 30.0 // Skip category header space
+            current_y -= config.quest_category_spacing
         } else {
-            category_pos := v2{panel_bounds.x + 20, current_y}
-            draw_text(category_pos, fmt.tprintf("-- %v --", category), scale = 2.0)
-            current_y -= 30.0
+            category_pos := v2{panel_bounds.x + config.quest_category_text_offset_x, current_y}
+            draw_text(category_pos, fmt.tprintf("-- %v --", category), scale = f64(config.quest_category_text_scale))
+            current_y -= config.quest_category_spacing
         }
 
         category_has_quests := false
@@ -589,15 +600,15 @@ draw_quest_menu :: proc(gs: ^Game_State) {
 
             category_has_quests = true
 
-            if current_y - QUEST_ENTRY_HEIGHT < content_bottom || current_y > content_top {
-                current_y -= QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+            if current_y - config.quest_entry_height < content_bottom || current_y > content_top {
+                current_y -= config.quest_entry_height + config.quest_entry_padding
                 continue
             }
 
             entry_bounds := AABB{
-                panel_bounds.x + 10,
-                current_y - QUEST_ENTRY_HEIGHT,
-                panel_bounds.z - 30,
+                panel_bounds.x + config.quest_entry_side_padding,
+                current_y - config.quest_entry_height,
+                panel_bounds.z - config.quest_entry_side_padding - config.quest_scrollbar_width,
                 current_y,
             }
 
@@ -608,18 +619,49 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 col = bg_color,
             )
 
-            text_pos := v2{entry_bounds.x + 10, entry_bounds.y + 10}
+            // Quest title
+            text_pos := v2{
+                entry_bounds.x + config.quest_entry_title_offset_x,
+                entry_bounds.y + config.quest_entry_title_offset_y
+            }
             text_color := quest.state == .Available ? v4{0.7, 0.7, 0.7, 1.0} : COLOR_WHITE
-            draw_text(text_pos, fmt.tprintf("%v", kind), scale = 1.5, color = text_color)
+            draw_text(
+                text_pos,
+                fmt.tprintf("%v", kind),
+                scale = f64(config.quest_entry_title_scale),
+                color = text_color
+            )
 
-            desc_pos := v2{entry_bounds.x + 10, entry_bounds.y + 35}
-            draw_text(desc_pos, info.description, scale = 1.2, color = v4{0.7, 0.7, 0.7, 1.0})
+            // Quest description
+            desc_pos := v2{
+                entry_bounds.x + config.quest_entry_desc_offset_x,
+                entry_bounds.y + config.quest_entry_desc_offset_y
+            }
+            draw_text(
+                desc_pos,
+                info.description,
+                scale = f64(config.quest_entry_desc_scale),
+                color = v4{0.7, 0.7, 0.7, 1.0}
+            )
 
-            status_pos := v2{entry_bounds.z - 150, entry_bounds.y + 10}
+            // Quest status
+            status_pos := v2{
+                entry_bounds.z - config.quest_entry_status_offset_x,
+                entry_bounds.y + config.quest_entry_status_offset_y
+            }
             if quest.state == .Available {
-                draw_text(status_pos, fmt.tprintf("Cost: %d", info.base_cost), scale = 1.2)
+                draw_text(
+                    status_pos,
+                    fmt.tprintf("Cost: %d", info.base_cost),
+                    scale = f64(config.quest_entry_status_scale)
+                )
             } else if quest.state == .Active {
-                draw_text(status_pos, "Active", scale = 1.2, color = v4{0.3, 0.8, 0.3, 1.0})
+                draw_text(
+                    status_pos,
+                    "Active",
+                    scale = f64(config.quest_entry_status_scale),
+                    color = v4{0.3, 0.8, 0.3, 1.0}
+                )
             }
 
             mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
@@ -627,20 +669,21 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 handle_quest_click(gs, kind)
             }
 
-            current_y -= QUEST_ENTRY_HEIGHT + QUEST_ENTRY_PADDING
+            current_y -= config.quest_entry_height + config.quest_entry_padding
         }
 
         if category_has_quests {
-            current_y -= 30.0
+            current_y -= config.quest_category_bottom_spacing
         }
     }
 
+    // Scrollbar
     if total_content_height > visible_height {
         scrollbar_bounds := AABB{
-            panel_bounds.z - 20,
-            panel_bounds.y + 100,
-            panel_bounds.z - 10,
-            panel_bounds.w - 20,
+            panel_bounds.z - config.quest_scrollbar_width - config.quest_scrollbar_offset_right,
+            panel_bounds.y + config.quest_scrollbar_padding_y,
+            panel_bounds.z - config.quest_scrollbar_offset_right,
+            panel_bounds.w - config.quest_scrollbar_padding_y,
         }
 
         scroll_height := scrollbar_bounds.w - scrollbar_bounds.y
@@ -662,8 +705,8 @@ draw_quest_menu :: proc(gs: ^Game_State) {
 
     back_button := make_centered_button(
         panel_bounds.y + 25,
-        PAUSE_MENU_BUTTON_WIDTH,
-        PAUSE_MENU_BUTTON_HEIGHT,
+        config.pause_menu_button_width,
+        config.pause_menu_button_height,
         "Back",
     )
 
