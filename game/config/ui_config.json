@@ -1,6 +1,6 @@
 {
-    "shop_panel_width": 512.0,
-    "shop_panel_height": 256.0,
+    "shop_panel_width": 850.0,
+    "shop_panel_height": 480.0,
     "shop_title_offset_x": 140.0,
     "shop_title_offset_y": 50.0,
     "shop_content_padding": 160.0,
@@ -11,19 +11,21 @@
     "shop_text_scale_currency": 0.7,
     "shop_text_scale_button": 0.4,
     "shop_text_scale_upgrade": 0.4,
-    "shop_button_width": 50.0,
-    "shop_button_height": 15.0,
-    "shop_button_vertical_padding": -12.0,
-    "shop_upgrade_text_offset_y": 30.0,
+    "shop_button_width": 100.0,
+    "shop_button_height": 25.0,
+    "shop_button_vertical_padding": 100.0,
+    "shop_upgrade_text_offset_y": 3.0,
     "shop_max_text_offset_x": 10.0,
     "shop_max_text_offset_y": 5.0,
     "shop_back_button_offset_y": -10.0,
-    "shop_back_button_width": 50.0,
-    "shop_back_button_height": 15.0,
+    "shop_back_button_width": 100.0,
+    "shop_back_button_height": 40.0,
     "shop_back_button_text_scale": 0.7,
     "shop_currency_text_offset_x": 210.0,
     "shop_currency_text_offset_y": 50.0,
     "shop_currency_text_scale": 0.6,
+    "shop_panel_offset_w": 2.1,
+    "shop_panel_offset_h": 600.0,
 
 
 
@@ -48,7 +50,10 @@
     "skills_content_top_offset": 60.0,
     "skills_content_bottom_offset": 50.0,
     "skills_scroll_speed": 10.0,
-
+    "skills_back_button_x": 0.0,
+    "skills_back_button_y": 600.0,
+    "pause_menu_button_height": 30.0,
+    "pause_menu_button_width": 100.0,
 
 
 

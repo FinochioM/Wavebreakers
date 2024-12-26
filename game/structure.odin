@@ -340,10 +340,20 @@ UI_Config :: struct {
     shop_currency_text_offset_x: f32,
     shop_currency_text_offset_y: f32,
     shop_currency_text_scale: f32,
+    skills_back_button_y: f32,
+    skills_back_button_x: f32,
 }
 
 UI_Hot_Reload :: struct {
     config: UI_Config,
     config_path: string,
     last_modified_time: time.Time,
+}
+
+Screen_Button :: struct {
+    screen_bounds: AABB,
+    world_bounds: AABB,
+    text: string,
+    text_scale: f32,
+    color: Vector4,
 }

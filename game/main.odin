@@ -1635,6 +1635,8 @@ init_ui_hot_reload :: proc() -> UI_Hot_Reload {
             shop_currency_text_offset_x = 0.0,
             shop_currency_text_offset_y = 0.0,
             shop_currency_text_scale = 0.0,
+            skills_back_button_y = 0.0,
+            skills_back_button_x = 0.0,
 
             // Skills menu
             skills_panel_width = 0.0,

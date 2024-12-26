@@ -1,33 +1,34 @@
 package main
 
 import "core:fmt"
+import sapp "../sokol/app"
 
-MENU_BUTTON_WIDTH :: 40.0
-MENU_BUTTON_HEIGHT :: 20.0
-PAUSE_MENU_BUTTON_WIDTH :: 50.0
-PAUSE_MENU_BUTTON_HEIGHT :: 20.0
+MENU_BUTTON_WIDTH :: 100.0
+MENU_BUTTON_HEIGHT :: 50.0
+PAUSE_MENU_BUTTON_WIDTH :: 150.0
+PAUSE_MENU_BUTTON_HEIGHT :: 30.0
 PAUSE_MENU_SPACING :: 10.0
-WAVE_BUTTON_WIDTH :: 45.0
-WAVE_BUTTON_HEIGHT :: 15.0
+WAVE_BUTTON_WIDTH :: 120.0
+WAVE_BUTTON_HEIGHT :: 30.0
 
-SKILLS_BUTTON_WIDTH :: 30.0
-SKILLS_BUTTON_HEIGHT :: 10.0
+SKILLS_BUTTON_WIDTH :: 60.0
+SKILLS_BUTTON_HEIGHT :: 20.0
 SKILLS_PANEL_WIDTH :: 400.0
 SKILLS_PANEL_HEIGHT :: 600.0
 SKILL_ENTRY_HEIGHT :: 60.0
 SKILL_ENTRY_PADDING :: 10.0
 
-QUEST_BUTTON_WIDTH :: 30.0
-QUEST_BUTTON_HEIGHT :: 10.0
+QUEST_BUTTON_WIDTH :: 60.0
+QUEST_BUTTON_HEIGHT :: 20.0
 QUEST_PANEL_WIDTH :: 800.0
 QUEST_PANEL_HEIGHT :: 600.0
 QUEST_ENTRY_HEIGHT :: 80.0
 QUEST_ENTRY_PADDING :: 10.0
 
 draw_menu :: proc(gs: ^Game_State) {
-	play_button := make_centered_button(1, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
+	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
 
-    if draw_button(play_button){
+    if draw_screen_button(play_button){
         start_new_game(gs)
         gs.state_kind = .PLAYING
     }
@@ -36,25 +37,25 @@ draw_menu :: proc(gs: ^Game_State) {
 draw_pause_menu :: proc(gs: ^Game_State) {
 	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-	resume_button := make_centered_button(
-		PAUSE_MENU_SPACING + PAUSE_MENU_BUTTON_HEIGHT,
+	resume_button := make_centered_screen_button(
+		360,
 		PAUSE_MENU_BUTTON_WIDTH,
 		PAUSE_MENU_BUTTON_HEIGHT,
 		"Resume",
 	)
 
-	menu_button := make_centered_button(
-		-(PAUSE_MENU_SPACING),
+	menu_button := make_centered_screen_button(
+		460,
 		PAUSE_MENU_BUTTON_WIDTH,
 		PAUSE_MENU_BUTTON_HEIGHT,
 		"Main Menu",
 	)
 
-	if draw_button(resume_button) {
+	if draw_screen_button(resume_button) {
 		gs.state_kind = .PLAYING
 	}
 
-	if draw_button(menu_button) {
+	if draw_screen_button(menu_button) {
 		gs.state_kind = .MENU
 	}
 }
@@ -62,56 +63,53 @@ draw_pause_menu :: proc(gs: ^Game_State) {
 draw_shop_menu :: proc(gs: ^Game_State) {
     config := get_ui_config(&gs.ui_hot_reload)
 
-    // Background overlay
-    draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+    panel_screen_x := (f32(window_w) - config.shop_panel_width) * 0.5
+    panel_screen_y := (f32(window_h) - config.shop_panel_height) * 0.5
 
-    // Panel setup
-    panel_width := config.shop_panel_width
-    panel_height := config.shop_panel_height
-    panel_x := -panel_width * 0.5
-    panel_y := -panel_height * 0.5
-
-    // Main panel
-    draw_rect_aabb(
-        v2{auto_cast panel_x, auto_cast panel_y},
-        v2{auto_cast panel_width, auto_cast panel_height},
-        col = v4{0.1, 0.1, 0.1, 0.9},
-    )
+    panel_world_pos := screen_to_ndc(Vector2{panel_screen_x, panel_screen_y})
 
     player := find_player(gs)
     if player == nil do return
 
-    // Title and currency
-    title_pos := v2{
-        auto_cast panel_x + config.shop_title_offset_x,
-        auto_cast panel_y + auto_cast panel_height - config.shop_title_offset_y
+    title_screen_pos := Vector2{
+        panel_screen_x + config.shop_title_offset_x,
+        panel_screen_y + config.shop_title_offset_y,
     }
-    draw_text(title_pos, "Shop", scale = f64(config.shop_text_scale_title))
+    title_world_pos := screen_to_ndc(title_screen_pos)
+    draw_text(
+        v2{title_world_pos.x * game_res_w * 0.5, title_world_pos.y * game_res_h * 0.5},
+        "Shop",
+        scale = f64(config.shop_text_scale_title),
+    )
 
-    currency_pos := v2{
-        auto_cast panel_x + auto_cast panel_width - config.shop_currency_text_offset_x,
-        auto_cast panel_y + auto_cast panel_height - config.shop_currency_text_offset_y
+    currency_screen_pos := Vector2{
+        panel_screen_x + config.shop_panel_width - config.shop_currency_text_offset_x,
+        panel_screen_y + config.shop_currency_text_offset_y,
     }
+    currency_world_pos := screen_to_ndc(currency_screen_pos)
     currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
-    draw_text(currency_pos, currency_text, scale = f64(config.shop_currency_text_scale))
+    draw_text(
+        v2{currency_world_pos.x * game_res_w * 0.5, currency_world_pos.y * game_res_h * 0.5},
+        currency_text,
+        scale = f64(config.shop_currency_text_scale),
+    )
 
-    // Column layout
     column_count := 2
     items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
-    content_width := panel_width - config.shop_content_padding
-    column_width := auto_cast content_width / auto_cast column_count
+    content_width := config.shop_panel_width - config.shop_content_padding
+    column_width := content_width / f32(column_count)
     button_spacing_y := config.shop_button_spacing_y
-    total_height := f32(items_per_column) * auto_cast button_spacing_y
-    start_y := panel_y + panel_height - config.shop_row_start_offset
 
-    // Draw upgrade buttons
     for upgrade, i in Upgrade_Kind {
         column := i / items_per_column
         row := i % items_per_column
 
-        base_x := panel_x + config.shop_column_start_offset + (column_width * auto_cast column)
-        x_pos := base_x + (column_width - config.shop_button_width) * 0.5
-        y_pos := start_y - auto_cast row * auto_cast button_spacing_y
+        button_screen_x := panel_screen_x + config.shop_column_start_offset +
+                          (column_width * f32(column)) +
+                          (column_width - config.shop_button_width) * 0.5
+
+        button_screen_y := panel_screen_y + config.shop_row_start_offset +
+                          (f32(row) * (config.shop_button_height + config.shop_button_spacing_y))
 
         level := get_upgrade_level(player, upgrade)
         cost := calculate_upgrade_cost(level)
@@ -124,55 +122,59 @@ draw_shop_menu :: proc(gs: ^Game_State) {
             button_color = v4{0.5, 0.2, 0.2, 1.0}
         }
 
-        button := Button{
-            bounds = {
-                auto_cast x_pos,
-                auto_cast y_pos - config.shop_button_vertical_padding,
-                auto_cast x_pos + config.shop_button_width,
-                auto_cast y_pos + config.shop_button_height - config.shop_button_vertical_padding,
-            },
-            text = button_text,
-            text_scale = config.shop_text_scale_button,
-            color = button_color,
-        }
+        button := make_screen_button(
+            button_screen_x,
+            button_screen_y,
+            config.shop_button_width,
+            config.shop_button_height,
+            button_text,
+            button_color,
+            config.shop_text_scale_button,
+        )
 
         if level < MAX_UPGRADE_LEVEL {
-            if draw_button(button) {
+            if draw_screen_button(button) {
                 try_purchase_upgrade(gs, player, upgrade)
             }
         }
 
-        // Upgrade text
-        name_pos := v2{
-            auto_cast x_pos,
-            auto_cast y_pos + config.shop_upgrade_text_offset_y
+        name_screen_pos := Vector2{
+            button_screen_x,
+            button_screen_y - config.shop_upgrade_text_offset_y,
         }
+        name_world_pos := screen_to_ndc(name_screen_pos)
         upgrade_text := fmt.tprintf("%v (Level %d)", upgrade, level)
-        draw_text(name_pos, upgrade_text, scale = f64(config.shop_text_scale_upgrade))
+        draw_text(
+            v2{name_world_pos.x * game_res_w * 0.5, name_world_pos.y * game_res_h * 0.5},
+            upgrade_text,
+            scale = f64(config.shop_text_scale_upgrade),
+        )
 
         if level >= MAX_UPGRADE_LEVEL {
-            max_pos := v2{
-                auto_cast x_pos + config.shop_button_width + config.shop_max_text_offset_x,
-                auto_cast y_pos + config.shop_max_text_offset_y
+            max_screen_pos := Vector2{
+                button_screen_x + config.shop_button_width + config.shop_max_text_offset_x,
+                button_screen_y + config.shop_max_text_offset_y,
             }
-            draw_text(max_pos, "MAX", scale = f64(config.shop_text_scale_upgrade), color = v4{1, 0.8, 0, 1})
+            max_world_pos := screen_to_ndc(max_screen_pos)
+            draw_text(
+                v2{max_world_pos.x * game_res_w * 0.5, max_world_pos.y * game_res_h * 0.5},
+                "MAX",
+                scale = f64(config.shop_text_scale_upgrade),
+                color = v4{1, 0.8, 0, 1},
+            )
         }
     }
 
-    // Back button
-    back_button := Button{
-        bounds = {
-            auto_cast panel_x + auto_cast panel_width * 0.5 - config.shop_back_button_width * 0.5,
-            auto_cast panel_y - config.shop_back_button_offset_y,
-            auto_cast panel_x + auto_cast panel_width * 0.5 + config.shop_back_button_width * 0.5,
-            auto_cast panel_y - config.shop_back_button_offset_y + config.shop_back_button_height,
-        },
-        text = "Back",
+    back_button := make_screen_button(
+        panel_screen_x + (config.shop_panel_width - config.shop_back_button_width) * 0.5,
+        panel_screen_y + config.shop_panel_height + config.shop_back_button_offset_y,
+        config.shop_back_button_width,
+        config.shop_back_button_height,
+        "Back",
         text_scale = config.shop_back_button_text_scale,
-        color = v4{0.2, 0.3, 0.8, 1.0},
-    }
+    )
 
-    if draw_button(back_button) {
+    if draw_screen_button(back_button) {
         gs.state_kind = .PLAYING
     }
 }
@@ -187,14 +189,14 @@ draw_game_over_screen :: proc(gs: ^Game_State){
 	wave_text := fmt.tprintf("Waves Completed %d", gs.wave_number - 1)
 	draw_text(wave_text_pos, wave_text, scale = 2.0)
 
-	menu_button := make_centered_button(
+	menu_button := make_centered_screen_button(
 	   -100,
 	   MENU_BUTTON_WIDTH,
 	   MENU_BUTTON_HEIGHT,
 	   "Main Menu",
 	)
 
-	if draw_button(menu_button){
+	if draw_screen_button(menu_button){
 	   gs.state_kind = .MENU
 	}
 }
@@ -204,94 +206,34 @@ draw_wave_button :: proc(gs: ^Game_State){
 
     #partial switch gs.wave_status {
         case .WAITING:
-            button := Button{
-                bounds = {
-                    button_pos.x - WAVE_BUTTON_WIDTH * 0.5,
-                    button_pos.y - WAVE_BUTTON_HEIGHT * 0.5,
-                    button_pos.x + WAVE_BUTTON_WIDTH * 0.5,
-                    button_pos.y + WAVE_BUTTON_HEIGHT * 0.5,
-                },
-                text = fmt.tprintf("Start Wave %d", gs.wave_number),
-                text_scale = 0.4,
-                color = v4{0.2, 0.6, 0.2, 1.0},
-            }
-
-            if draw_button(button){
+            button := make_centered_screen_button(
+                500,
+                WAVE_BUTTON_WIDTH,
+                WAVE_BUTTON_HEIGHT,
+                fmt.tprintf("Start Wave %d", gs.wave_number),
+                v4{0.2, 0.6, 0.2, 1.0},
+                0,
+                0.4,
+            )
+            if draw_screen_button(button) {
                 gs.wave_status = .IN_PROGRESS
             }
         case .COMPLETED:
-            button := Button{
-                bounds = {
-                    button_pos.x - WAVE_BUTTON_WIDTH * 0.5,
-                    button_pos.y - WAVE_BUTTON_HEIGHT * 0.5,
-                    button_pos.x + WAVE_BUTTON_WIDTH * 0.5,
-                    button_pos.y + WAVE_BUTTON_HEIGHT * 0.5,
-                },
-                text = fmt.tprintf("Start Wave %d", gs.wave_number + 1),
-                text_scale = 0.4,
-                color = v4{0.2, 0.6, 0.2, 1.0},
-            }
+            button := make_centered_screen_button(
+                500,
+                WAVE_BUTTON_WIDTH,
+                WAVE_BUTTON_HEIGHT,
+                fmt.tprintf("Start Wave %d", gs.wave_number + 1),
+                v4{0.2, 0.6, 0.2, 1.0},
+                0,
+                0.4,
+            )
 
-            if draw_button(button){
+            if draw_screen_button(button){
                 init_wave(gs, gs.wave_number + 1)
                 gs.wave_status = .IN_PROGRESS
             }
     }
-}
-
-draw_button :: proc(button: Button) -> bool {
-	mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
-	is_hovered := aabb_contains(button.bounds, mouse_pos)
-	is_clicked := is_hovered && key_just_pressed(app_state.input_state, .LEFT_MOUSE)
-
-	if is_clicked {
-	   play_sound("button_click")
-	}
-
-	color := button.color
-	if is_hovered {
-		color.xyz *= 1.2
-	}
-
-	draw_rect_aabb(
-		v2{button.bounds.x, button.bounds.y},
-		v2{button.bounds.z - button.bounds.x, button.bounds.w - button.bounds.y},
-		col = color,
-	)
-
-	text_width := f32(len(button.text)) * 8 * button.text_scale
-	text_height := 16 * button.text_scale
-
-	text_pos := v2 {
-		button.bounds.x + (button.bounds.z - button.bounds.x - text_width) * 0.5,
-		button.bounds.y + (button.bounds.w - button.bounds.y - text_height) * 0.5,
-	}
-
-	draw_text(text_pos, button.text, scale = auto_cast button.text_scale)
-
-	return is_hovered && key_just_pressed(app_state.input_state, .LEFT_MOUSE)
-}
-
-make_centered_button :: proc(
-	y_pos: f32,
-	width: f32,
-	height: f32,
-	text: string,
-	color := v4{0.2, 0.3, 0.8, 1.0},
-	x_offset := f32(0),
-	text_scale := f32(0.5),
-) -> Button {
-	return Button {
-		bounds = {
-			-width * 0.5 + x_offset,
-			y_pos - height * 0.5,
-			width * 0.5 + x_offset,
-			y_pos + height * 0.5,
-		},
-		text = text,
-		text_scale = text_scale,
-		color = color,
-	}
 }
 
 draw_skills_button :: proc(gs: ^Game_State){
@@ -310,24 +252,24 @@ draw_skills_button :: proc(gs: ^Game_State){
 
     if !has_unlocked_skills do return
 
-	button := make_centered_button(
-		120,
+	button := make_centered_screen_button(
+		20,
 		SKILLS_BUTTON_WIDTH,
 		SKILLS_BUTTON_HEIGHT,
 		"Skills",
-		x_offset = SKILLS_BUTTON_WIDTH + PAUSE_MENU_SPACING,
+		x_offset = (SKILLS_BUTTON_WIDTH + PAUSE_MENU_SPACING),
 		color = v4{0.5, 0.1, 0.8, 1.0},
 		text_scale = 0.4
 	)
 
-    if draw_button(button){
+    if draw_screen_button(button){
         gs.state_kind = .SKILLS
     }
 }
 
 draw_shop_button :: proc(gs: ^Game_State){
-	shop_button := make_centered_button(
-		120,
+	shop_button := make_centered_screen_button(
+		20,
 		SKILLS_BUTTON_WIDTH,
 		SKILLS_BUTTON_HEIGHT,
 		"Shop",
@@ -336,7 +278,7 @@ draw_shop_button :: proc(gs: ^Game_State){
 		text_scale = 0.4
 	)
 
-	if draw_button(shop_button) {
+	if draw_screen_button(shop_button) {
 		gs.state_kind = .SHOP
 	}
 }
@@ -359,8 +301,8 @@ draw_quest_button :: proc(gs: ^Game_State) {
         button_color = v4{0.5, 0.1, 0.8, 1.0}
     }
 
-    quest_button := make_centered_button(
-        120,
+    quest_button := make_centered_screen_button(
+        20,
         QUEST_BUTTON_WIDTH,
         QUEST_BUTTON_HEIGHT,
         "Quests",
@@ -369,7 +311,7 @@ draw_quest_button :: proc(gs: ^Game_State) {
         text_scale = 0.4
     )
 
-    if draw_button(quest_button) && has_available_quests {
+    if draw_screen_button(quest_button) && has_available_quests {
         gs.state_kind = .QUESTS
     }
 }
@@ -475,8 +417,9 @@ draw_skills_menu :: proc(gs: ^Game_State) {
             col = v4{0.3, 0.8, 0.3, 1.0},
         )
 
-        mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
-        if aabb_contains(entry_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+        screen_bounds := world_to_screen_bounds(entry_bounds)
+        mouse_pos := window_to_screen(app_state.input_state.mouse_pos)
+        if aabb_contains(screen_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
             if gs.active_skill != nil && gs.active_skill.? == skill.kind {
                 gs.active_skill = nil
             } else {
@@ -510,14 +453,15 @@ draw_skills_menu :: proc(gs: ^Game_State) {
         )
     }
 
-    back_button := make_centered_button(
-        panel_bounds.y + 25,
+    back_button := make_centered_screen_button(
+        config.skills_back_button_y,
         config.pause_menu_button_width,
         config.pause_menu_button_height,
         "Back",
+        x_offset = config.skills_back_button_x,
     )
 
-    if draw_button(back_button) {
+    if draw_screen_button(back_button) {
         gs.state_kind = .PLAYING
     }
 }
@@ -703,14 +647,14 @@ draw_quest_menu :: proc(gs: ^Game_State) {
         )
     }
 
-    back_button := make_centered_button(
+    back_button := make_centered_screen_button(
         panel_bounds.y + 25,
         config.pause_menu_button_width,
         config.pause_menu_button_height,
         "Back",
     )
 
-    if draw_button(back_button) {
+    if draw_screen_button(back_button) {
         gs.state_kind = .PLAYING
     }
 }
@@ -738,5 +682,130 @@ handle_quest_click :: proc(gs: ^Game_State, kind: Quest_Kind) {
             activate_quest(gs, kind)
         case .Active:
             deactivate_quest(gs)
+    }
+}
+
+get_window_scale :: proc() -> Vector2{
+    return Vector2{
+        f32(sapp.width()) / f32(window_w),
+        f32(sapp.height()) / f32(window_h),
+    }
+}
+
+window_to_screen :: proc(window_pos: Vector2) -> Vector2{
+    scale := get_window_scale()
+    return Vector2{
+        window_pos.x / scale.x,
+        window_pos.y / scale.y,
+    }
+}
+
+screen_to_ndc :: proc(screen_pos: Vector2) -> Vector2{
+    return Vector2{
+        (2.0 * screen_pos.x / f32(window_w)) - 1.0,
+        -((2.0 * screen_pos.y / f32(window_h)) -1.0),
+    }
+}
+
+make_screen_button :: proc(
+    screen_x: f32,
+    screen_y: f32,
+    width: f32,
+    height: f32,
+    text: string,
+    color := v4{0.2, 0.3, 0.8, 1.0},
+    text_scale := f32(0.5),
+) -> Screen_Button {
+    screen_bounds := AABB{
+        screen_x,
+        screen_y,
+        screen_x + width,
+        screen_y + height,
+    }
+
+    bl := screen_to_ndc(Vector2{screen_bounds.x, screen_bounds.y + height})
+    tr := screen_to_ndc(Vector2{screen_bounds.z, screen_bounds.y})
+
+    world_bounds := AABB{
+        bl.x * game_res_w * 0.5,
+        bl.y * game_res_h * 0.5,
+        tr.x * game_res_w * 0.5,
+        tr.y * game_res_h * 0.5,
+    }
+
+    return Screen_Button{
+        screen_bounds = screen_bounds,
+        world_bounds = world_bounds,
+        text = text,
+        text_scale = text_scale,
+        color = color,
+    }
+}
+
+draw_screen_button :: proc(button: Screen_Button) -> bool {
+    mouse_pos := window_to_screen(app_state.input_state.mouse_pos)
+    is_hovered := aabb_contains(button.screen_bounds, mouse_pos)
+    is_clicked := is_hovered && key_just_pressed(app_state.input_state, .LEFT_MOUSE)
+
+    if is_clicked {
+        play_sound("button_click")
+    }
+
+    color := button.color
+    if is_hovered {
+        color.xyz *= 1.2
+    }
+
+    draw_rect_aabb(
+        v2{button.world_bounds.x, button.world_bounds.y},
+        v2{button.world_bounds.z - button.world_bounds.x, button.world_bounds.w - button.world_bounds.y},
+        col = color,
+    )
+
+    text_width := f32(len(button.text)) * 8 * button.text_scale
+    text_height := 16 * button.text_scale
+
+    text_pos := v2{
+        button.world_bounds.x + (button.world_bounds.z - button.world_bounds.x - text_width) * 0.5,
+        button.world_bounds.y + (button.world_bounds.w - button.world_bounds.y - text_height) * 0.5,
+    }
+
+    draw_text(text_pos, button.text, scale = auto_cast button.text_scale)
+
+    return is_clicked
+}
+
+make_centered_screen_button :: proc(
+    y_pos: f32,
+    width: f32,
+    height: f32,
+    text: string,
+    color := v4{0.2, 0.3, 0.8, 1.0},
+    x_offset := f32(0),
+    text_scale := f32(0.5),
+) -> Screen_Button {
+    screen_x := (f32(window_w) - width) * 0.5 + x_offset
+    return make_screen_button(
+        screen_x,
+        y_pos - height * 0.5,
+        width,
+        height,
+        text,
+        color,
+        text_scale,
+    )
+}
+
+world_to_screen_bounds :: proc(world_bounds: AABB) -> AABB {
+    ndc_x := world_bounds.x / (game_res_w * 0.5)
+    ndc_y := world_bounds.y / (game_res_h * 0.5)
+    ndc_z := world_bounds.z / (game_res_w * 0.5)
+    ndc_w := world_bounds.w / (game_res_h * 0.5)
+
+    return AABB{
+        (ndc_x + 1.0) * f32(window_w) * 0.5,
+        (-ndc_w + 1.0) * f32(window_h) * 0.5,
+        (ndc_z + 1.0) * f32(window_w) * 0.5,
+        (-ndc_y + 1.0) * f32(window_h) * 0.5,
     }
 }
