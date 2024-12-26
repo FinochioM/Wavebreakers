@@ -438,7 +438,9 @@ draw_skills_menu :: proc(gs: ^Game_State) {
 
         scroll_height := scrollbar_bounds.w - scrollbar_bounds.y
         thumb_height := (visible_height / total_content_height) * scroll_height
-        thumb_pos := scrollbar_bounds.y + (gs.skills_scroll_offset / max_scroll) * (scroll_height - thumb_height)
+
+        scroll_percentage := 1.0 - (gs.skills_scroll_offset / max_scroll)
+        thumb_pos := scrollbar_bounds.y + scroll_percentage * (scroll_height - thumb_height)
 
         draw_rect_aabb(
             v2{scrollbar_bounds.x, scrollbar_bounds.y},
@@ -483,14 +485,12 @@ draw_quest_menu :: proc(gs: ^Game_State) {
         col = v4{0.2, 0.2, 0.2, 0.9},
     )
 
-    // Title and currency
     title_pos := v2{panel_bounds.x + config.quest_title_offset_x, panel_bounds.w - config.quest_title_offset_y}
     draw_text(title_pos, "Quests", scale = f64(config.quest_title_scale))
 
     currency_pos := v2{panel_bounds.z - config.quest_currency_offset_x, panel_bounds.w - config.quest_currency_offset_y}
     draw_text(currency_pos, fmt.tprintf("Currency: %d", gs.currency_points), scale = f64(config.quest_currency_scale))
 
-    // Content area setup
     content_start_y := panel_bounds.w - config.quest_content_top_offset
     visible_height := panel_bounds.w - panel_bounds.y - config.quest_content_top_offset - config.quest_content_bottom_offset
 
@@ -525,7 +525,6 @@ draw_quest_menu :: proc(gs: ^Game_State) {
 
     current_y := content_start_y + gs.quest_scroll_offset
 
-    // Draw categories and quests
     for category in Quest_Category {
         if current_y < content_bottom || current_y > content_top {
             current_y -= config.quest_category_spacing
@@ -563,7 +562,6 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 col = bg_color,
             )
 
-            // Quest title
             text_pos := v2{
                 entry_bounds.x + config.quest_entry_title_offset_x,
                 entry_bounds.y + config.quest_entry_title_offset_y
@@ -576,7 +574,6 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 color = text_color
             )
 
-            // Quest description
             desc_pos := v2{
                 entry_bounds.x + config.quest_entry_desc_offset_x,
                 entry_bounds.y + config.quest_entry_desc_offset_y
@@ -588,7 +585,6 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 color = v4{0.7, 0.7, 0.7, 1.0}
             )
 
-            // Quest status
             status_pos := v2{
                 entry_bounds.z - config.quest_entry_status_offset_x,
                 entry_bounds.y + config.quest_entry_status_offset_y
@@ -608,8 +604,9 @@ draw_quest_menu :: proc(gs: ^Game_State) {
                 )
             }
 
-            mouse_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
-            if aabb_contains(entry_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+            screen_bounds := world_to_screen_bounds(entry_bounds)
+            mouse_pos := window_to_screen(app_state.input_state.mouse_pos)
+            if aabb_contains(screen_bounds, mouse_pos) && key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
                 handle_quest_click(gs, kind)
             }
 
@@ -621,7 +618,6 @@ draw_quest_menu :: proc(gs: ^Game_State) {
         }
     }
 
-    // Scrollbar
     if total_content_height > visible_height {
         scrollbar_bounds := AABB{
             panel_bounds.z - config.quest_scrollbar_width - config.quest_scrollbar_offset_right,
@@ -632,7 +628,9 @@ draw_quest_menu :: proc(gs: ^Game_State) {
 
         scroll_height := scrollbar_bounds.w - scrollbar_bounds.y
         thumb_height := (visible_height / total_content_height) * scroll_height
-        thumb_pos := scrollbar_bounds.y + (gs.quest_scroll_offset / max_scroll) * (scroll_height - thumb_height)
+
+        scroll_percentage := 1.0 - (gs.quest_scroll_offset / max_scroll)
+        thumb_pos := scrollbar_bounds.y + scroll_percentage * (scroll_height - thumb_height)
 
         draw_rect_aabb(
             v2{scrollbar_bounds.x, scrollbar_bounds.y},
@@ -648,10 +646,11 @@ draw_quest_menu :: proc(gs: ^Game_State) {
     }
 
     back_button := make_centered_screen_button(
-        panel_bounds.y + 25,
+        config.skills_back_button_y,
         config.pause_menu_button_width,
         config.pause_menu_button_height,
         "Back",
+        x_offset = config.skills_back_button_x,
     )
 
     if draw_screen_button(back_button) {
