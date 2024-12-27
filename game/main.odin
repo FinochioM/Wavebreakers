@@ -193,8 +193,8 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
-	   e.health = 100
-	   e.max_health = 100
+	   e.health = 10000
+	   e.max_health = 10000
 	   e.damage = 10
     }
 	e.attack_speed = 1.0
@@ -222,7 +222,22 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
                 .boss10_run_5, .boss10_run_6, .boss10_run_7, .boss10_run_8,
             }
             boss10_move_anim := create_animation(boss10_move_frames, 0.1, true, "boss10_move")
+
+            boss10_attack_frames: []Image_Id = {
+                .boss10_attack_1, .boss10_attack_2, .boss10_attack_3, .boss10_attack_4,
+                .boss10_attack_5, .boss10_attack_6, .boss10_attack_7, .boss10_attack_8,
+            }
+            boss10_attack_anim := create_animation(boss10_attack_frames, 0.1, false, "boss10_attack1")
+
+            boss10_attack2_frames: []Image_Id = {
+                .boss10_attack2_1, .boss10_attack2_2, .boss10_attack2_3, .boss10_attack2_4,
+                .boss10_attack2_5, .boss10_attack2_6, .boss10_attack2_7, .boss10_attack2_8,
+            }
+            boss10_attack2_anim := create_animation(boss10_attack2_frames, 0.1, false, "boss10_attack2")
+
             add_animation(&e.animations, boss10_move_anim)
+            add_animation(&e.animations, boss10_attack_anim)
+            add_animation(&e.animations, boss10_attack2_anim)
         }else if wave_num == 20 {
             e.enemy_type = 20
             e.value = 100
@@ -262,7 +277,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         play_animation_by_name(&e.animations, "enemy1_10_move")
     }else if wave_num == 10{
         play_animation_by_name(&e.animations, "boss10_move")
-    }else if wave_num <= 20{
+    }else if wave_num <= 19{
         play_animation_by_name(&e.animations, "enemy11_19_move")
     }
 
@@ -280,7 +295,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
     if is_boss_wave {
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
-        speed_mult *= 0.2
+        speed_mult *= 0.8
     }
 
     e.pos = pos
@@ -353,7 +368,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 0
+    gs.wave_number = 9
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -1533,6 +1548,20 @@ play_animation_by_name :: proc(collection: ^Animation_Collection, name: string) 
         play_animation(anim)
     } else {
         fmt.println("Animation not found:", name)
+    }
+}
+
+reset_and_play_animation :: proc(collection: ^Animation_Collection, name: string, speed: f32 = 1.0){
+    if collection == nil do return
+
+    if anim, ok := &collection.animations[name]; ok{
+        anim.current_frame = 0
+        anim.frame_timer = 0
+        anim.state = .Playing
+        anim.loops = false
+        adjust_animation_to_speed(anim, speed)
+
+        collection.current_animation = name
     }
 }
 

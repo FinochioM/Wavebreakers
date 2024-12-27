@@ -357,3 +357,17 @@ Screen_Button :: struct {
     text_scale: f32,
     color: Vector4,
 }
+
+Boss_Attack_State :: enum {
+    Normal_Attack_1,
+    Normal_Attack_2,
+    Strong_Attack,
+    Rest,
+}
+
+Boss_State :: struct {
+    current_attack: Boss_Attack_State,
+    attack_count: int,
+    rest_timer: f32,
+    first_encounter: bool,
+}

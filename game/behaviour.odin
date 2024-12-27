@@ -31,9 +31,116 @@ spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color :
     })
 }
 
+
+//
+// : boss
+boss_states: map[Entity_Handle]Boss_State
+
+REST_DURATION :: 1.0
+STRONG_ATTACK_MULTIPLIER :: 1.5
+
+process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+    if en.enemy_type != 10 do return
+
+    state, exists := &boss_states[en.id]
+    if !exists {
+        boss_states[en.id] = Boss_State{
+            current_attack = .Normal_Attack_1,
+            attack_count = 0,
+            rest_timer = REST_DURATION,
+            first_encounter = true,
+        }
+        state = &boss_states[en.id]
+    }
+
+    if en.target == nil {
+        for &potential_target in gs.entities {
+            if potential_target.kind == .player {
+                en.target = &potential_target
+                break
+            }
+        }
+    }
+
+    if en.target == nil do return
+
+    direction := en.target.pos - en.pos
+    distance := linalg.length(direction)
+
+    #partial switch en.state {
+        case .moving:
+            play_animation_by_name(&en.animations, "boss10_move")
+            if distance <= BOSS_ATTACK_RANGE {
+                en.state = .attacking
+                en.attack_timer = 0  // Start attacking immediately
+            } else if distance > 2.0 {
+                en.prev_pos = en.pos
+                direction = linalg.normalize(direction)
+                en.pos += direction * en.speed * delta_t
+            }
+
+        case .attacking:
+            if distance > BOSS_ATTACK_RANGE {
+                en.state = .moving
+                return
+            }
+
+            en.prev_pos = en.pos
+            en.attack_timer -= delta_t
+
+            if state.current_attack == .Rest {
+                state.rest_timer -= delta_t
+                if state.rest_timer <= 0 {
+                    state.current_attack = .Normal_Attack_1
+                    state.attack_count = 0
+                    state.rest_timer = REST_DURATION
+                    en.attack_timer = 0
+                }
+                return
+            }
+
+            current_anim := en.animations.animations[en.animations.current_animation]
+
+            if en.attack_timer <= 0 {
+                #partial switch state.current_attack {
+                    case .Normal_Attack_1:
+                        reset_and_play_animation(&en.animations, "boss10_attack1", 1.0)
+                        damage := process_enemy_damage(en.target, en.damage)
+                        en.target.health -= damage
+                        state.current_attack = .Normal_Attack_2
+                        en.attack_timer = BOSS_ATTACK_COOLDOWN * 0.8
+                    case .Normal_Attack_2:
+                        reset_and_play_animation(&en.animations, "boss10_attack1", 1.2)
+                        damage := process_enemy_damage(en.target, en.damage)
+                        en.target.health -= damage
+                        state.current_attack = .Strong_Attack
+                        en.attack_timer = BOSS_ATTACK_COOLDOWN
+                    case .Strong_Attack:
+                        reset_and_play_animation(&en.animations, "boss10_attack2", 0.85)
+                        damage := process_enemy_damage(en.target, int(f32(en.damage) * STRONG_ATTACK_MULTIPLIER))
+                        en.target.health -= damage
+                        state.current_attack = .Rest
+                        en.attack_timer = BOSS_ATTACK_COOLDOWN
+                        state.rest_timer = REST_DURATION
+                }
+
+                if en.target.health <= 0 {
+                    en.target.health = 0
+                }
+            }
+    }
+}
+
+BOSS_ATTACK_RANGE :: 70.0
+BOSS_ATTACK_COOLDOWN :: 1.0
 ENEMY_ATTACK_RANGE :: 20.0
 ENEMY_ATTACK_COOLDOWN :: 2.0
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+    if en.enemy_type == 10 {
+        process_boss_behaviour(en, gs, delta_t)
+        return
+    }
+
 	if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation{
 	   last_speed := en.speed
 	   en.speed = min(en.speed * (1 + delta_t), last_speed)
@@ -52,21 +159,14 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
 
-    if en.enemy_type == 10 {
-        fmt.printf("Boss movement - Pos: %v, Target: %v, Direction: %v, Distance: %v, Speed: %v\n",
-            en.pos, en.target.pos, direction, distance, en.speed)
-    }
-
 	#partial switch en.state {
 	case .moving:
 		if distance <= ENEMY_ATTACK_RANGE {
 			en.state = .attacking
-            if en.enemy_type == 10 do fmt.println("Boss switching to attack state")
 		}
 	case .attacking:
 		if distance > ENEMY_ATTACK_RANGE {
 			en.state = .moving
-            if en.enemy_type == 10 do fmt.println("Boss switching to move state")
 		}
 	}
 
@@ -77,10 +177,6 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		if distance > 2.0 {
 			en.prev_pos = en.pos
 			direction = linalg.normalize(direction)
-            if en.enemy_type == 10 {
-                fmt.printf("Boss moving - Normalized direction: %v, Movement: %v\n",
-                    direction, direction * en.speed * delta_t)
-            }
 			en.pos += direction * en.speed * delta_t
 		}
 	case .attacking:
@@ -89,7 +185,12 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		en.attack_timer -= delta_t
 		if en.attack_timer <= 0 {
 			if en.target != nil {
-			    play_animation_by_name(&en.animations, wave_num <= 10 ? "enemy1_10_attack" : "enemy11_19_attack")
+			    if wave_num <= 9{
+			         play_animation_by_name(&en.animations,"enemy1_10_attack")
+			    }else if wave_num <= 19 {
+			         play_animation_by_name(&en.animations, "enemy11_19_attack")
+			    }
+
 				damage := process_enemy_damage(en.target, en.damage)
 				en.target.health -= damage
 
@@ -592,10 +693,6 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
     }
 
     is_boss_wave := gs.wave_number % 10 == 0
-
-    if is_boss_wave {
-        fmt.println("Processing boss wave", gs.wave_number) // Debug boss wave
-    }
 
     gs.wave_spawn_timer -= f32(delta_t)
     if gs.wave_spawn_timer <= 0 && gs.enemies_to_spawn > 0 {
