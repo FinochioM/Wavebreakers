@@ -38,6 +38,7 @@ boss_states: map[Entity_Handle]Boss_State
 
 REST_DURATION :: 1.0
 STRONG_ATTACK_MULTIPLIER :: 1.5
+CURRENT_TIMER_ATTACK := 0
 
 process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     if en.enemy_type != 10 do return
@@ -72,7 +73,7 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
             play_animation_by_name(&en.animations, "boss10_move")
             if distance <= BOSS_ATTACK_RANGE {
                 en.state = .attacking
-                en.attack_timer = 0  // Start attacking immediately
+                en.attack_timer = 0
             } else if distance > 2.0 {
                 en.prev_pos = en.pos
                 direction = linalg.normalize(direction)
@@ -100,34 +101,51 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
             }
 
             current_anim := en.animations.animations[en.animations.current_animation]
+            if current_anim.name == "boss10_move" {
+                current_anim.state = .Stopped
+            }
 
-            if en.attack_timer <= 0 {
+            if en.attack_timer <= 0 && current_anim.state == .Stopped{
                 #partial switch state.current_attack {
                     case .Normal_Attack_1:
                         reset_and_play_animation(&en.animations, "boss10_attack1", 1.0)
-                        damage := process_enemy_damage(en.target, en.damage)
-                        en.target.health -= damage
-                        state.current_attack = .Normal_Attack_2
-                        en.attack_timer = BOSS_ATTACK_COOLDOWN * 0.8
-                    case .Normal_Attack_2:
-                        reset_and_play_animation(&en.animations, "boss10_attack1", 1.2)
-                        damage := process_enemy_damage(en.target, en.damage)
-                        en.target.health -= damage
-                        state.current_attack = .Strong_Attack
+                        if CURRENT_TIMER_ATTACK == 0 {
+                            state.current_attack = .Normal_Attack_1
+                            CURRENT_TIMER_ATTACK += 1
+                        }else{
+                            state.current_attack = .Strong_Attack
+                        }
+                        state.damage_dealt = false
                         en.attack_timer = BOSS_ATTACK_COOLDOWN
                     case .Strong_Attack:
-                        reset_and_play_animation(&en.animations, "boss10_attack2", 0.85)
-                        damage := process_enemy_damage(en.target, int(f32(en.damage) * STRONG_ATTACK_MULTIPLIER))
-                        en.target.health -= damage
-                        state.current_attack = .Rest
-                        en.attack_timer = BOSS_ATTACK_COOLDOWN
-                        state.rest_timer = REST_DURATION
-                }
-
-                if en.target.health <= 0 {
-                    en.target.health = 0
+                        reset_and_play_animation(&en.animations, "boss10_attack2", 1.0)
+                        state.current_attack = .Normal_Attack_1
+                        state.damage_dealt = false
+                        en.attack_timer = BOSS_ATTACK_COOLDOWN * 1.2
+                        CURRENT_TIMER_ATTACK = 0
                 }
             }
+
+            if anim, ok := &en.animations.animations[en.animations.current_animation]; ok{
+                damage_frame := 7
+                    if anim.current_frame == damage_frame && anim.state == .Playing && !state.damage_dealt {
+                        if anim.name == "boss10_attack1" {
+                            damage := process_enemy_damage(en.target, en.damage)
+                            spawn_floating_text(gs, en.target.pos, fmt.tprintf("%d", damage), v4{1, 0.5, 0, 1})
+                            en.target.health -= damage
+                            state.damage_dealt = true
+                        } else if anim.name == "boss10_attack2" {
+                            damage := process_enemy_damage(en.target, int(f32(en.damage) * STRONG_ATTACK_MULTIPLIER))
+                            spawn_floating_text(gs, en.target.pos, fmt.tprintf("%d", damage), v4{1, 0.5, 0, 1})
+                            en.target.health -= damage
+                            state.damage_dealt = true
+                        }
+                    }
+
+                    if en.target.health <= 0 {
+                        en.target.health = 0
+                    }
+                }
     }
 }
 

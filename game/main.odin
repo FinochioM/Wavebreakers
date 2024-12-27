@@ -1578,13 +1578,13 @@ update_current_animation :: proc(collection: ^Animation_Collection, delta_t: f32
 
 draw_current_animation :: proc(collection: ^Animation_Collection, pos: Vector2, pivot := Pivot.bottom_left, xform := Matrix4(1)) {
     if collection == nil || collection.current_animation == "" {
-        fmt.println("Warning: Empty animation collection or no current animation") // Debug animations
+        fmt.println("Warning: Empty animation collection or no current animation")
         return
     }
     if anim, ok := &collection.animations[collection.current_animation]; ok {
         draw_animated_sprite(pos, anim, pivot, xform)
     }else {
-        fmt.println("Warning: Animation not found in collection:", collection.current_animation) // Debug missing animations
+        fmt.println("Warning: Animation not found in collection:", collection.current_animation)
     }
 }
 

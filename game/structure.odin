@@ -360,9 +360,8 @@ Screen_Button :: struct {
 
 Boss_Attack_State :: enum {
     Normal_Attack_1,
-    Normal_Attack_2,
     Strong_Attack,
-    Rest,
+    Rest
 }
 
 Boss_State :: struct {
@@ -370,4 +369,5 @@ Boss_State :: struct {
     attack_count: int,
     rest_timer: f32,
     first_encounter: bool,
+    damage_dealt: bool,
 }
