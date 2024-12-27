@@ -52,14 +52,21 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
 
+    if en.enemy_type == 10 {
+        fmt.printf("Boss movement - Pos: %v, Target: %v, Direction: %v, Distance: %v, Speed: %v\n",
+            en.pos, en.target.pos, direction, distance, en.speed)
+    }
+
 	#partial switch en.state {
 	case .moving:
 		if distance <= ENEMY_ATTACK_RANGE {
 			en.state = .attacking
+            if en.enemy_type == 10 do fmt.println("Boss switching to attack state")
 		}
 	case .attacking:
 		if distance > ENEMY_ATTACK_RANGE {
 			en.state = .moving
+            if en.enemy_type == 10 do fmt.println("Boss switching to move state")
 		}
 	}
 
@@ -70,6 +77,10 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 		if distance > 2.0 {
 			en.prev_pos = en.pos
 			direction = linalg.normalize(direction)
+            if en.enemy_type == 10 {
+                fmt.printf("Boss moving - Normalized direction: %v, Movement: %v\n",
+                    direction, direction * en.speed * delta_t)
+            }
 			en.pos += direction * en.speed * delta_t
 		}
 	case .attacking:
@@ -582,6 +593,10 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 
     is_boss_wave := gs.wave_number % 10 == 0
 
+    if is_boss_wave {
+        fmt.println("Processing boss wave", gs.wave_number) // Debug boss wave
+    }
+
     gs.wave_spawn_timer -= f32(delta_t)
     if gs.wave_spawn_timer <= 0 && gs.enemies_to_spawn > 0 {
         enemy := entity_create(gs)
@@ -595,7 +610,11 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
                 auto_cast spawn_position + SPAWN_MARGIN * 0.2,
             )
 
-            setup_enemy(enemy, v2{spawn_x, -115}, gs.current_wave_difficulty)
+            if is_boss_wave {
+                setup_enemy(enemy, v2{spawn_x, -130}, gs.current_wave_difficulty)
+            }else{
+                setup_enemy(enemy, v2{spawn_x, -115}, gs.current_wave_difficulty)
+            }
             gs.active_enemies += 1
         }
 

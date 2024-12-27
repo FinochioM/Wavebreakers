@@ -49,7 +49,14 @@ Image_Id :: enum {
 	enemy1_10_6_attack,
 	enemy1_10_7_attack,
 	enemy1_10_8_attack,
-	boss10,
+	boss10_run_1,
+	boss10_run_2,
+	boss10_run_3,
+	boss10_run_4,
+	boss10_run_5,
+	boss10_run_6,
+	boss10_run_7,
+	boss10_run_8,
 	enemy11_19_1_move,
 	enemy11_19_2_move,
 	enemy11_19_3_move,
@@ -297,7 +304,7 @@ init_fonts :: proc() {
 
 	bitmap, _ := mem.alloc(font_bitmap_w * font_bitmap_h)
 	font_height := 15 // for some reason this only bakes properly at 15 ? it's a 16px font dou...
-	path := "./res/fonts/alagard.ttf"
+	path := "./res/fonts/rainyhearts.ttf"
 	ttf_data, err := os.read_entire_file(path)
 	assert(ttf_data != nil, "failed to read font")
 

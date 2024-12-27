@@ -13,7 +13,6 @@ import t "core:time"
 import "core:encoding/json"
 import "core:time"
 
-
 import sapp "../sokol/app"
 import sg "../sokol/gfx"
 import sglue "../sokol/glue"
@@ -47,6 +46,7 @@ main :: proc() {
 		},
 	)
 }
+
 
 init :: proc "c" () {
 	initialize()
@@ -193,7 +193,7 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
-	   e.health = 50
+	   e.health = 100
 	   e.max_health = 100
 	   e.damage = 10
     }
@@ -209,21 +209,24 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
     e.flags |= {.allocated}
 
     is_boss_wave := app_state.game.wave_number % 10 == 0
-    is_first_boss := app_state.game.wave_number == FIRST_BOSS_WAVE
     wave_num := app_state.game.wave_number
 
     e.animations = create_animation_collection()
 
     if is_boss_wave {
-        switch wave_num {
-            case 10:
-                e.enemy_type = 10
-                e.value = 50
-                draw_sprite(pos, .boss10, pivot = .bottom_center)
-            case 20:
-                e.enemy_type = 20
-                e.value = 100
-                draw_sprite(pos, .boss20, pivot = .bottom_center)
+        if wave_num == 10 {
+            e.enemy_type = 10
+            e.value = 50
+            boss10_move_frames: []Image_Id = {
+                .boss10_run_1, .boss10_run_2, .boss10_run_3, .boss10_run_4,
+                .boss10_run_5, .boss10_run_6, .boss10_run_7, .boss10_run_8,
+            }
+            boss10_move_anim := create_animation(boss10_move_frames, 0.1, true, "boss10_move")
+            add_animation(&e.animations, boss10_move_anim)
+        }else if wave_num == 20 {
+            e.enemy_type = 20
+            e.value = 100
+            draw_sprite(pos, .boss20, pivot = .bottom_center)
         }
     }else{
         if wave_num <= 10{
@@ -247,7 +250,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
                 .enemy11_19_1_move, .enemy11_19_2_move, .enemy11_19_3_move, .enemy11_19_4_move,
                 .enemy11_19_5_move, .enemy11_19_6_move, .enemy11_19_7_move, .enemy11_19_8_move,
             }
-            enemy2_move_anim := create_animation(enemy2_move_frames, 0.1, true, "enemy11_19_move")
+            enemy2_move_anim := create_animation(enemy2_move_frames, 0.14, true, "enemy11_19_move")
 
             add_animation(&e.animations, enemy2_move_anim)
         }
@@ -255,7 +258,13 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         e.value = e.enemy_type * 2
     }
 
-    play_animation_by_name(&e.animations, wave_num <= 10 ? "enemy1_10_move" : "enemy11_19_move")
+    if wave_num <= 9 {
+        play_animation_by_name(&e.animations, "enemy1_10_move")
+    }else if wave_num == 10{
+        play_animation_by_name(&e.animations, "boss10_move")
+    }else if wave_num <= 20{
+        play_animation_by_name(&e.animations, "enemy11_19_move")
+    }
 
     base_health := 15 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
@@ -271,7 +280,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
     if is_boss_wave {
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
-        speed_mult *= 0.5
+        speed_mult *= 0.2
     }
 
     e.pos = pos
@@ -281,7 +290,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
     e.attack_timer = 0.0
     e.damage = int(f32(base_damage) * damage_mult * difficulty)
     e.state = .moving
-    e.speed = f32(base_speed) * speed_mult
+    e.speed = abs(f32(base_speed)) * speed_mult
 }
 
 calculate_exp_for_level :: proc(level: int) -> int {
@@ -330,7 +339,7 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 //
 // :sim
 
-FOV_RANGE :: 350.0 // Range in which the player can detect enemies
+FOV_RANGE :: 200.0 // Range in which the player can detect enemies
 
 start_new_game :: proc(gs: ^Game_State) {
     for &en in gs.entities {
@@ -346,7 +355,7 @@ start_new_game :: proc(gs: ^Game_State) {
 
     gs.wave_number = 0
     gs.enemies_to_spawn = 0
-    gs.currency_points = 10000
+    gs.currency_points = 0
     gs.player_level = 0
     gs.player_experience = 0
 
@@ -412,6 +421,10 @@ handle_input :: proc(gs: ^Game_State) {
 			}
 		}
 	}
+}
+
+calculate_collision :: proc() {
+    // CALCULATE DIMENSIONS DINAMICALLY WITH SWITCH
 }
 
 update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
@@ -506,7 +519,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 						if !(.allocated in target.flags) do continue
 
 						dist := linalg.length(target.pos - en.pos)
-						collision_radius := target.enemy_type == 10 ? 100.0 : 25.0
+						collision_radius := target.enemy_type == 10 ? 100.0 : 25.0 // TODO TODO TODO
 						if auto_cast dist <= collision_radius {
 							when_projectile_hits_enemy(gs, &en, &target)
 							entity_destroy(gs, &en)
@@ -762,18 +775,10 @@ draw_player :: proc(en: ^Entity) {
 }
 
 draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
-	img := Image_Id.enemy1_10_1_move
-
-	if en.enemy_type == 10{
-	   img = .boss10
-	}else if en.enemy_type == 20{
-	   img = .boss20
-	}
-
 	xform := Matrix4(1)
 
-	if en.enemy_type == 10{
-	   xform *= xform_scale(v2{3,3})
+	if en.enemy_type == 10 || en.enemy_type == 20{
+	   xform *= xform_scale(v2{1,1})
 	}else{
 	   xform *= xform_scale(v2{0.7, 0.7})
 	}
@@ -1543,9 +1548,14 @@ update_current_animation :: proc(collection: ^Animation_Collection, delta_t: f32
 }
 
 draw_current_animation :: proc(collection: ^Animation_Collection, pos: Vector2, pivot := Pivot.bottom_left, xform := Matrix4(1)) {
-    if collection == nil || collection.current_animation == "" do return
+    if collection == nil || collection.current_animation == "" {
+        fmt.println("Warning: Empty animation collection or no current animation") // Debug animations
+        return
+    }
     if anim, ok := &collection.animations[collection.current_animation]; ok {
         draw_animated_sprite(pos, anim, pivot, xform)
+    }else {
+        fmt.println("Warning: Animation not found in collection:", collection.current_animation) // Debug missing animations
     }
 }
 
