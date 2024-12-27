@@ -179,47 +179,55 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 
 	#partial switch en.state {
 	case .moving:
+	    wave_num := gs.wave_number
+	    if wave_num <= 9 {
+	       play_animation_by_name(&en.animations, "enemy1_10_move")
+	    }else if wave_num <= 19 {
+	       play_animation_by_name(&en.animations, "enemy11_19_move")
+	    }
+
 		if distance <= ENEMY_ATTACK_RANGE {
 			en.state = .attacking
+			en.attack_timer = 0
+		}else if distance > 2.0{
+		    en.prev_pos = en.pos
+		    direction = linalg.normalize(direction)
+		    en.pos += direction * en.speed * delta_t
 		}
 	case .attacking:
 		if distance > ENEMY_ATTACK_RANGE {
 			en.state = .moving
+			return
 		}
-	}
 
-    wave_num := gs.wave_number
-
-	#partial switch en.state {
-	case .moving:
-		if distance > 2.0 {
-			en.prev_pos = en.pos
-			direction = linalg.normalize(direction)
-			en.pos += direction * en.speed * delta_t
-		}
-	case .attacking:
-	    en.prev_pos = en.pos
+        en.prev_pos = en.pos
         en.speed = 0
-		en.attack_timer -= delta_t
-		if en.attack_timer <= 0 {
-			if en.target != nil {
-			    if wave_num <= 9{
-			         play_animation_by_name(&en.animations,"enemy1_10_attack")
-			    }else if wave_num <= 19 {
-			         play_animation_by_name(&en.animations, "enemy11_19_attack")
-			    }
+        en.attack_timer -= delta_t
 
-				damage := process_enemy_damage(en.target, en.damage)
-				en.target.health -= damage
+        if en.attack_timer <= 0 {
+            wave_num := gs.wave_number
+            if wave_num <= 9 {
+                reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
+            } else if wave_num <= 19 {
+                reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
+            }
+            en.attack_timer = ENEMY_ATTACK_COOLDOWN
+        }
 
-				if en.target.health <= 0{
-				    en.target.health = 0
-				}
+        if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
+            damage_frame := 7
+            if anim.current_frame == damage_frame && anim.state == .Playing {
+                damage := process_enemy_damage(en.target, en.damage)
+                spawn_floating_text(gs, en.target.pos, fmt.tprintf("%d", damage), v4{1, 0.5, 0, 1})
+                en.target.health -= damage
 
-				en.attack_timer = ENEMY_ATTACK_COOLDOWN
-			}
-		}
+                if en.target.health <= 0{
+                    en.target.health = 0
+                }
+            }
+        }
 	}
+
 }
 
 process_enemy_damage :: proc(player: ^Entity, damage: int) -> int {
@@ -654,7 +662,7 @@ WAVE_SPAWN_RATE :: 2.0 // Time between enemy spawns
 
 init_wave_config :: proc() -> Wave_Config{
     return Wave_Config{
-        base_enemy_count = 5,
+        base_enemy_count = 1,
         enemy_count_increase = 3,
         max_enemy_count = 30,
         base_difficulty = 1.0,

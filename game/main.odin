@@ -255,7 +255,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
                 .enemy1_10_1_attack,.enemy1_10_2_attack,.enemy1_10_3_attack,.enemy1_10_4_attack,
                 .enemy1_10_5_attack,.enemy1_10_6_attack,.enemy1_10_7_attack,.enemy1_10_8_attack
             }
-            enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, true, "enemy1_10_attack")
+            enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, false, "enemy1_10_attack")
 
         	add_animation(&e.animations, enemy_move_anim)
         	add_animation(&e.animations, enemy_attack_anim)
@@ -281,7 +281,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         play_animation_by_name(&e.animations, "enemy11_19_move")
     }
 
-    base_health := 15 + (e.enemy_type - 1) * 10
+    base_health := 150 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
     base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
 
@@ -368,7 +368,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 9
+    gs.wave_number = 0
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
