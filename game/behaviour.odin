@@ -153,22 +153,21 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 BOSS_ATTACK_RANGE :: 70.0
 BOSS_ATTACK_COOLDOWN :: 1.0
 ENEMY_ATTACK_RANGE :: 20.0
-ENEMY_ATTACK_COOLDOWN :: 1.0
+ENEMY_ATTACK_COOLDOWN :: 1.5
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     if en.enemy_type == 10 {
         process_boss_behaviour(en, gs, delta_t)
         return
     }
 
-    state, exists := &boss_states[en.id]
+    state, exists := &enemy_state[en.id]
     if !exists {
-        boss_states[en.id] = Boss_State{
-            current_attack = .Normal_Attack_1,
-            attack_count = 0,
-            rest_timer = REST_DURATION,
+        enemy_state[en.id] = Enemy_State{
+            current_attack = .Attacking,
             first_encounter = true,
+            damage_dealt = false,
         }
-        state = &boss_states[en.id]
+        state = &enemy_state[en.id]
     }
 
 	if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation{
@@ -189,41 +188,21 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
 
-    if en.animations.current_animation == "enemy1_10_hit" {
-    if anim, ok := &en.animations.animations["enemy1_10_hit"]; ok {
-        if anim.current_frame >= len(anim.frames) - 1 {
-            wave_num := gs.wave_number
-            if en.state == .moving {
-                if wave_num <= 9 {
-                    play_animation_by_name(&en.animations, "enemy1_10_move")
-                } else if wave_num <= 19 {
-                    play_animation_by_name(&en.animations, "enemy11_19_move")
-                }
-            } else if en.state == .attacking {
-                if wave_num <= 9 {
-                        play_animation_by_name(&en.animations, "enemy1_10_attack")
-                } else if wave_num <= 19 {
-                        play_animation_by_name(&en.animations, "enemy11_19_attack")
-                    }
-                }
-            }
-        }
-    }
-
 	#partial switch en.state {
 	case .moving:
-	   if en.animations.current_animation != "enemy1_10_hit" {
-       	    wave_num := gs.wave_number
-    	    if wave_num <= 9 {
+	   wave_num := gs.wave_number
+	    if wave_num <= 9 {
+       	     if wave_num <= 9 {
     	       play_animation_by_name(&en.animations, "enemy1_10_move")
-    	    }else if wave_num <= 19 {
+    	     }else if wave_num <= 19 {
     	       play_animation_by_name(&en.animations, "enemy11_19_move")
-    	    }
+	        }
 	    }
 
 		if distance <= ENEMY_ATTACK_RANGE {
 			en.state = .attacking
 			en.attack_timer = 0
+			state.damage_dealt = false
 		}else if distance > 2.0{
 		    en.prev_pos = en.pos
 		    direction = linalg.normalize(direction)
@@ -239,28 +218,27 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
         en.speed = 0
         en.attack_timer -= delta_t
 
-        current_anim := en.animations.animations[en.animations.current_animation]
-        if current_anim.name == "enemy1_10_move" {
-            current_anim.state = .Stopped
-        }
-
         wave_num := gs.wave_number
         if en.attack_timer <= 0 {
+            state.damage_dealt = false
             if wave_num <= 9 {
                 reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
             } else if wave_num <= 19 {
                 reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
             }
             en.attack_timer = ENEMY_ATTACK_COOLDOWN
-        } else if current_anim.state == .Stopped {
-            // Play idle animation between attacks
-            if wave_num <= 9 {
-                play_animation_by_name(&en.animations, "enemy1_10_move")  // Using move as idle
-            } else if wave_num <= 19 {
-                play_animation_by_name(&en.animations, "enemy11_19_move")
-            }
         }
+
+
         if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
+            if anim.state == .Stopped {
+                if wave_num <= 9{
+                    play_animation_by_name(&en.animations, "enemy1_10_move")
+                }else if wave_num <= 19{
+                    play_animation_by_name(&en.animations, "enemy11_19_move")
+                }
+            }
+
             damage_frame := 7
             if anim.current_frame == damage_frame && anim.state == .Playing && !state.damage_dealt {
                 damage := process_enemy_damage(en.target, en.damage)
@@ -713,7 +691,7 @@ WAVE_SPAWN_RATE :: 2.0 // Time between enemy spawns
 
 init_wave_config :: proc() -> Wave_Config{
     return Wave_Config{
-        base_enemy_count = 1,
+        base_enemy_count = 3,
         enemy_count_increase = 3,
         max_enemy_count = 30,
         base_difficulty = 1.0,

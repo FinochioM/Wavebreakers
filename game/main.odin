@@ -274,7 +274,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         e.value = e.enemy_type * 2
     }
 
-    base_health := 1500 + (e.enemy_type - 1) * 10
+    base_health := 15 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
     base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
 
@@ -1786,7 +1786,7 @@ CLOUD_SPAWN_INTERVAL :: 5.0
 
 create_cloud_layer :: proc(layer_index: int) -> Cloud_Layer {
     speed_multiplier := 1.0 - (f32(layer_index) * 0.3)
-    scale_multiplier := 1.0 - (f32(layer_index) * 0.4)
+    scale_multiplier := 1.0 - (f32(layer_index) * 0.2)
     opacity := 1.0 - (f32(layer_index) * 0.9)
 
     layer_height_range := CLOUD_MAX_HEIGHT - CLOUD_MIN_HEIGHT
