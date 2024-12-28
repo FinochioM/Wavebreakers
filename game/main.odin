@@ -258,14 +258,8 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
             }
             enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, false, "enemy1_10_attack")
 
-            enemy_hit_frames: []Image_Id = {
-                .enemy1_10_hit1, .enemy1_10_hit2, .enemy1_10_hit3, .enemy1_10_hit4,
-            }
-            enemy_hit_anim := create_animation(enemy_hit_frames, 0.1, false, "enemy1_10_hit")
-
         	add_animation(&e.animations, enemy_move_anim)
         	add_animation(&e.animations, enemy_attack_anim)
-        	add_animation(&e.animations, enemy_hit_anim)
         }else if wave_num <= 20{
             e.enemy_type = 2
             enemy2_move_frames: []Image_Id = {
@@ -280,7 +274,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         e.value = e.enemy_type * 2
     }
 
-    base_health := 15 + (e.enemy_type - 1) * 10
+    base_health := 1500 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
     base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
 
@@ -374,6 +368,10 @@ start_new_game :: proc(gs: ^Game_State) {
     gs.player_experience = 0
 
     init_game_systems(gs)
+    cloud := entity_create(gs)
+    if cloud != nil{
+        setup_cloud(cloud, 0)
+    }
 
     e := entity_create(gs)
     if e != nil {
@@ -446,6 +444,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 
 	#partial switch gs.state_kind {
 	case .PLAYING, .SKILLS, .QUESTS:
+	    update_clouds(gs, delta_t)
 	    update_quest_progress(gs)
 	    i := 0
 	    for i < len(gs.floating_texts){
@@ -593,7 +592,6 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	alpha := f32(accumulator) / f32(sims_per_second)
 
 
-
 	#partial switch gs.state_kind {
 	case .MENU:
        // draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
@@ -607,6 +605,13 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 			}
 		}
 
+        for &en in gs.entities{
+    	    if en.kind == .clouds{
+		      draw_clouds(&en)
+		    }
+        }
+
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map2)
 		for &en in gs.entities {
 			#partial switch en.kind {
 			case .player:
@@ -622,7 +627,6 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 				}
 			}
 		}
-
 		for &en in gs.entities {
 			if en.kind == .player {
 				ui_base_pos := v2{-220, 120}
@@ -675,6 +679,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 		}
 
 		draw_pause_menu(gs)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
 	case .SHOP:
 		draw_shop_menu(gs)
 	case .GAME_OVER:
@@ -1766,4 +1771,104 @@ check_and_reload :: proc(hr: ^UI_Hot_Reload) {
 
 get_ui_config :: proc(hr: ^UI_Hot_Reload) -> UI_Config {
     return hr.config
+}
+
+//
+// :clouds
+CLOUD_SCREEN_WIDTH :: 512.0
+NUM_CLOUD_LAYERS :: 3
+BASE_CLOUD_SPEED :: 10.0
+CLOUD_MIN_HEIGHT :: -20.0
+CLOUD_MAX_HEIGHT :: 100.0
+CLOUD_Y_SPACING :: 40.0
+MAX_CLOUDS :: 12
+CLOUD_SPAWN_INTERVAL :: 5.0
+
+create_cloud_layer :: proc(layer_index: int) -> Cloud_Layer {
+    speed_multiplier := 1.0 - (f32(layer_index) * 0.3)
+    scale_multiplier := 1.0 - (f32(layer_index) * 0.4)
+    opacity := 1.0 - (f32(layer_index) * 0.9)
+
+    layer_height_range := CLOUD_MAX_HEIGHT - CLOUD_MIN_HEIGHT
+    layer_section := layer_height_range / auto_cast f32(NUM_CLOUD_LAYERS)
+
+    layer_min := CLOUD_MIN_HEIGHT + (f32(layer_index) * auto_cast  layer_section)
+    layer_max := layer_min + auto_cast layer_section
+
+    return Cloud_Layer {
+        speed = BASE_CLOUD_SPEED * speed_multiplier,
+        scale = Vector2{scale_multiplier, scale_multiplier},
+        opacity = opacity,
+        y_range = {
+            min = layer_min,
+            max = layer_max,
+        },
+    }
+}
+
+get_random_cloud_image :: proc() -> Image_Id {
+    cloud_images := []Image_Id{.cloud1, .cloud2, .cloud3, .cloud4}
+    return cloud_images[rand.int_max(len(cloud_images))]
+}
+
+setup_cloud :: proc(cloud: ^Entity, layer_index: int) {
+    cloud.kind = .clouds
+    cloud.flags |= {.allocated}
+
+    layer := create_cloud_layer(layer_index)
+    y_pos := rand.float32_range(layer.y_range.min, layer.y_range.max)
+
+    cloud.pos = v2{-CLOUD_SCREEN_WIDTH / 2, y_pos}
+    cloud.cloud_data.layer = layer
+    cloud.cloud_data.image = get_random_cloud_image()
+}
+
+spawn_cloud :: proc(gs: ^Game_State) {
+    cloud_count := 0
+    for &entity in gs.entities {
+        if entity.kind == .clouds {
+            cloud_count += 1
+        }
+    }
+
+    if cloud_count >= MAX_CLOUDS do return
+
+    cloud := entity_create(gs)
+    if cloud != nil {
+        layer_index := rand.int_max(NUM_CLOUD_LAYERS)
+        setup_cloud(cloud, layer_index)
+    }
+}
+
+update_clouds :: proc(gs: ^Game_State, delta_t: f64) {
+    gs.cloud_spawn_timer -= f32(delta_t)
+    if gs.cloud_spawn_timer <= 0 {
+        gs.cloud_spawn_timer = CLOUD_SPAWN_INTERVAL
+        spawn_cloud(gs)
+    }
+
+    for &cloud in gs.entities {
+        if cloud.kind != .clouds do continue
+        cloud.pos.x += cloud.cloud_data.layer.speed * f32(delta_t)
+        if cloud.pos.x >= CLOUD_SCREEN_WIDTH / 2 {
+            entity_destroy(gs, &cloud)
+        }
+    }
+}
+
+draw_clouds :: proc(cloud: ^Entity) {
+    if cloud.kind != .clouds do return
+
+    xform := Matrix4(1)
+    xform *= xform_scale(cloud.cloud_data.layer.scale)
+    //color := v4{1, 1, 1, cloud.cloud_data.layer.opacity}
+    color := v4{1, 1, 1, 0}
+
+    draw_sprite(
+        cloud.pos,
+        cloud.cloud_data.image,
+        pivot = .bottom_left,
+        xform = xform,
+        color_override = color
+    )
 }

@@ -713,7 +713,7 @@ WAVE_SPAWN_RATE :: 2.0 // Time between enemy spawns
 
 init_wave_config :: proc() -> Wave_Config{
     return Wave_Config{
-        base_enemy_count = 3,
+        base_enemy_count = 1,
         enemy_count_increase = 3,
         max_enemy_count = 30,
         base_difficulty = 1.0,

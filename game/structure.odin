@@ -67,6 +67,7 @@ Game_State :: struct {
     quest_scroll_offset: f32,
     ui_hot_reload: UI_Hot_Reload,
     hit_color_override: v4,
+    cloud_spawn_timer: f32,
 }
 
 Enemy_Target :: struct {
@@ -90,6 +91,7 @@ Entity_Kind :: enum {
 	player,
 	enemy,
 	player_projectile,
+	clouds,
 }
 
 Entity :: struct {
@@ -138,6 +140,10 @@ Entity :: struct {
 	   hit_timer: f32,
 	   hit_duration: f32,
 	   color_override: Vector4,
+	},
+	cloud_data: struct {
+	   layer: Cloud_Layer,
+       image: Image_Id,
 	}
 }
 
@@ -394,4 +400,15 @@ Hit_State :: struct {
     is_hit: bool,
     hit_timer: f32,
     hit_duration: f32,
+}
+
+
+Cloud_Layer :: struct {
+    speed: f32,
+    scale: Vector2,
+    opacity: f32,
+    y_range: struct {
+        min: f32,
+        max: f32,
+    }
 }

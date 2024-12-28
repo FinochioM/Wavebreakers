@@ -17,6 +17,13 @@ Image_Id :: enum {
 	// MAP
 	background_map0,
 	background_map1,
+	background_map2,
+
+	// PARALAX
+	cloud1,
+	cloud2,
+	cloud3,
+	cloud4,
 
 	// PLAYER
 	player_attack1,
