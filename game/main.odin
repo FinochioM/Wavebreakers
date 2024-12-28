@@ -235,9 +235,15 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
             }
             boss10_attack2_anim := create_animation(boss10_attack2_frames, 0.1, false, "boss10_attack2")
 
+            boss10_idle_frames: []Image_Id = {
+                .boss10_rest_1, .boss10_rest_2, .boss10_rest_3,
+            }
+            boss10_idle_anim := create_animation(boss10_idle_frames, 0.1, false, "boss10_idle")
+
             add_animation(&e.animations, boss10_move_anim)
             add_animation(&e.animations, boss10_attack_anim)
             add_animation(&e.animations, boss10_attack2_anim)
+            add_animation(&e.animations, boss10_idle_anim)
         }else if wave_num == 20 {
             e.enemy_type = 20
             e.value = 100
@@ -361,7 +367,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 0
+    gs.wave_number = 9
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0

@@ -100,6 +100,9 @@ Image_Id :: enum {
 	boss10_attack2_6,
 	boss10_attack2_7,
 	boss10_attack2_8,
+	boss10_rest_1,
+	boss10_rest_2,
+	boss10_rest_3,
 
 	boss20,
 }

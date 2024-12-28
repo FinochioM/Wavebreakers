@@ -128,7 +128,14 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
             }
 
             if anim, ok := &en.animations.animations[en.animations.current_animation]; ok{
-
+                wave_num := gs.wave_number
+                if anim.state == .Stopped {
+                    if wave_num <= 9{
+                        play_animation_by_name(&en.animations, "boss10_idle")
+                    }else if wave_num <= 19{
+                        play_animation_by_name(&en.animations, "boss10_idle")
+                    }
+                }
 
                 damage_frame := 5
                     if anim.current_frame == damage_frame && anim.state == .Playing && !state.damage_dealt {
