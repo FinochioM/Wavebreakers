@@ -27,7 +27,7 @@ initialize :: proc "c" () {
 	init_images()
 	init_fonts()
 	init_sound()
-    play_sound("beat")
+    //play_sound("beat")
 
 	first_time_init_game_state(&app_state.game)
 

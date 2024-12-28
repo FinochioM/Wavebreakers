@@ -238,20 +238,28 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
         en.prev_pos = en.pos
         en.speed = 0
         en.attack_timer -= delta_t
-        if en.animations.current_animation != "enemy1_10_hit" {
-            if en.attack_timer <= 0 {
-                wave_num := gs.wave_number
-                if wave_num <= 9 {
-                    reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
-                    state.damage_dealt = false
-                } else if wave_num <= 19 {
-                    reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
-                    state.damage_dealt = false
-                }
-                en.attack_timer = ENEMY_ATTACK_COOLDOWN
-            }
+
+        current_anim := en.animations.animations[en.animations.current_animation]
+        if current_anim.name == "enemy1_10_move" {
+            current_anim.state = .Stopped
         }
 
+        wave_num := gs.wave_number
+        if en.attack_timer <= 0 {
+            if wave_num <= 9 {
+                reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
+            } else if wave_num <= 19 {
+                reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
+            }
+            en.attack_timer = ENEMY_ATTACK_COOLDOWN
+        } else if current_anim.state == .Stopped {
+            // Play idle animation between attacks
+            if wave_num <= 9 {
+                play_animation_by_name(&en.animations, "enemy1_10_move")  // Using move as idle
+            } else if wave_num <= 19 {
+                play_animation_by_name(&en.animations, "enemy11_19_move")
+            }
+        }
         if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
             damage_frame := 7
             if anim.current_frame == damage_frame && anim.state == .Playing && !state.damage_dealt {
