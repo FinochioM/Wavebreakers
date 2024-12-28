@@ -127,7 +127,7 @@ FOV_RANGE_BONUS_PER_LEVEL :: 2.0
 HEALTH_REGEN_PER_LEVEL :: 0.9
 
 FIRST_BOSS_WAVE :: 10
-BOSS_STATS_MULTIPLIER :: 5.0
+BOSS_STATS_MULTIPLIER :: 1.5
 
 handle_to_entity :: proc(gs: ^Game_State, handle: Entity_Handle) -> ^Entity {
 	for &en in gs.entities {
@@ -193,8 +193,8 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
-	   e.health = 100
-	   e.max_health = 100
+	   e.health = 10000
+	   e.max_health = 10000
 	   e.damage = 10
     }
 	e.attack_speed = 1.0
@@ -288,7 +288,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
     if is_boss_wave {
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
-        speed_mult *= 0.8
+        speed_mult *= 0.3
     }
 
     e.pos = pos
@@ -347,7 +347,7 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 //
 // :sim
 
-FOV_RANGE :: 200.0 // Range in which the player can detect enemies
+FOV_RANGE :: 300.0 // Range in which the player can detect enemies 200
 
 start_new_game :: proc(gs: ^Game_State) {
     for &en in gs.entities {
@@ -435,8 +435,24 @@ handle_input :: proc(gs: ^Game_State) {
 	}
 }
 
-calculate_collision :: proc() {
-    // CALCULATE DIMENSIONS DINAMICALLY WITH SWITCH
+get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
+    base_height := f32(80.0)
+    base_width := f32(60.0)
+
+    if enemy.enemy_type == 1{
+        base_width = 25.0
+        base_height = 20.0
+    }else if enemy.enemy_type == 10 {
+        base_width = 45.0
+        base_height = 70.0
+    }
+
+    return AABB {
+        enemy.pos.x - base_width / 2,
+        enemy.pos.y,
+        enemy.pos.x + base_width / 2,
+        enemy.pos.y + base_height
+    }
 }
 
 update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
@@ -539,13 +555,23 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 						if target.kind != .enemy do continue
 						if !(.allocated in target.flags) do continue
 
+						hit_box := get_enemy_collision_box(&target)
+
+						if aabb_contains(hit_box, new_pos){
+						  when_projectile_hits_enemy(gs, &en, &target)
+						  entity_destroy(gs, &en)
+						  break
+						}
+
+                    /*
 						dist := linalg.length(target.pos - en.pos)
-						collision_radius := target.enemy_type == 10 ? 100.0 : 25.0 // TODO TODO TODO
+						collision_radius := target.enemy_type == 10 ? 40.0 : 25.0 // TODO TODO TODO
 						if auto_cast dist <= collision_radius {
 							when_projectile_hits_enemy(gs, &en, &target)
 							entity_destroy(gs, &en)
 							break
 						}
+				    	*/
 					}
 
 					if .allocated in en.flags {

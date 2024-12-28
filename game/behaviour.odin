@@ -38,7 +38,7 @@ boss_states: map[Entity_Handle]Boss_State
 enemy_state: map[Entity_Handle]Enemy_State
 
 REST_DURATION :: 1.0
-STRONG_ATTACK_MULTIPLIER :: 1.5
+STRONG_ATTACK_MULTIPLIER :: 1.1
 CURRENT_TIMER_ATTACK := 0
 
 process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
@@ -66,23 +66,23 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 
     if en.target == nil do return
 
-    direction := en.target.pos - en.pos
-    distance := linalg.length(direction)
+    x_direction := en.target.pos.x - en.pos.x
+    x_distance := abs(x_direction)
 
     #partial switch en.state {
         case .moving:
             play_animation_by_name(&en.animations, "boss10_move")
-            if distance <= BOSS_ATTACK_RANGE {
+            if x_distance <= BOSS_ATTACK_RANGE {
                 en.state = .attacking
                 en.attack_timer = 0
-            } else if distance > 2.0 {
+            } else if x_distance > 2.0 {
                 en.prev_pos = en.pos
-                direction = linalg.normalize(direction)
-                en.pos += direction * en.speed * delta_t
+                move_direction := x_direction > 0 ? 1.0 : -1.0
+                en.pos.x += f32(move_direction) * f32(en.speed) * f32(delta_t)
             }
 
         case .attacking:
-            if distance > BOSS_ATTACK_RANGE {
+            if x_distance > BOSS_ATTACK_RANGE {
                 en.state = .moving
                 return
             }
@@ -128,7 +128,9 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
             }
 
             if anim, ok := &en.animations.animations[en.animations.current_animation]; ok{
-                damage_frame := 7
+
+
+                damage_frame := 5
                     if anim.current_frame == damage_frame && anim.state == .Playing && !state.damage_dealt {
                         if anim.name == "boss10_attack1" {
                             damage := process_enemy_damage(en.target, en.damage)
@@ -150,7 +152,7 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     }
 }
 
-BOSS_ATTACK_RANGE :: 70.0
+BOSS_ATTACK_RANGE :: 60.0
 BOSS_ATTACK_COOLDOWN :: 1.0
 ENEMY_ATTACK_RANGE :: 20.0
 ENEMY_ATTACK_COOLDOWN :: 1.5
