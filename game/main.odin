@@ -193,8 +193,8 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
-	   e.health = 10000
-	   e.max_health = 10000
+	   e.health = 100
+	   e.max_health = 100
 	   e.damage = 10
     }
 	e.attack_speed = 1.0
@@ -280,7 +280,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         e.value = e.enemy_type * 2
     }
 
-    base_health := 150 + (e.enemy_type - 1) * 10
+    base_health := 15 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
     base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
 
@@ -504,7 +504,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
         				projectile := entity_create(gs)
         				if projectile != nil {
         					setup_projectile(gs, projectile, en.pos, closest_enemy.pos)
-        					play_sound("shoot")
+        					play_sound("projectile")
         				}
         				en.attack_timer = 1.0 / en.attack_speed
 				    }
@@ -513,14 +513,12 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 			}
 			if en.kind == .enemy {
 				process_enemy_behaviour(&en, gs, f32(delta_t))
-			    if hit_state.is_hit {
-                    hit_state.hit_timer -= f32(delta_t)
-                    if hit_state.hit_timer <= 0 {
-                        hit_state.is_hit = false
-                        hit_state.hit_timer = 0
-                        gs.hit_color_override = v4{255,255,255,0}
-                    } else {
-                        gs.hit_color_override = v4{255,255,255,1}
+			    if en.hit_state.is_hit {
+                    en.hit_state.hit_timer -= f32(delta_t)
+                    if en.hit_state.hit_timer <= 0 {
+                        en.hit_state.is_hit = false
+                        en.hit_state.hit_timer = 0
+                        en.hit_state.color_override = v4{1,1,1,0}
                     }
                 }
 			}
@@ -618,7 +616,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 				hit_color_override := gs.hit_color_override
 
 				if en.kind == .enemy {
-					draw_enemy_at_pos(&en, render_pos, hit_color_override)
+					draw_enemy_at_pos(&en, render_pos)
 				} else if en.kind == .player_projectile {
 					draw_player_projectile_at_pos(en, render_pos)
 				}
@@ -801,7 +799,7 @@ draw_player :: proc(en: ^Entity) {
     draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
 }
 
-draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2, color_override := v4{0,0,0,0}) {
+draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
 	xform := Matrix4(1)
 
 	if en.enemy_type == 10 || en.enemy_type == 20{
@@ -810,7 +808,7 @@ draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2, color_override := v4{0,0,0,
 	   xform *= xform_scale(v2{0.7, 0.7})
 	}
 
-	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform, color_override = color_override)
+	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform, color_override = en.hit_state.color_override)
 }
 
 should_spawn_projectile :: proc(en: ^Entity) -> bool {

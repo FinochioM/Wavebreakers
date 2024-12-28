@@ -133,6 +133,12 @@ Entity :: struct {
 	chain_reaction_range: f32,
 	is_multishot: bool,
 	animations: Animation_Collection,
+	hit_state: struct {
+	   is_hit: bool,
+	   hit_timer: f32,
+	   hit_duration: f32,
+	   color_override: Vector4,
+	}
 }
 
 Element_Kind :: enum{
@@ -373,13 +379,19 @@ Boss_State :: struct {
     damage_dealt: bool,
 }
 
+Enemy_Attack_State :: enum {
+    Attacking,
+}
+
+Enemy_State :: struct {
+    current_attack: Enemy_Attack_State,
+    rest_timer: f32,
+    first_encounter: bool,
+    damage_dealt: bool,
+}
+
 Hit_State :: struct {
     is_hit: bool,
     hit_timer: f32,
     hit_duration: f32,
-}
-
-hit_state: Hit_State = {
-    hit_timer = 0,
-    hit_duration = 0.08,
 }

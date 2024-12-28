@@ -5,6 +5,8 @@ import fstudio "fmod/studio"
 import fsbank "fmod/fsbank"
 import "core:fmt"
 import "core:strings"
+import "core:thread"
+thread_pool: [dynamic]^thread.Thread
 
 Sound_State :: struct {
 	system: ^fstudio.SYSTEM,
@@ -14,6 +16,7 @@ Sound_State :: struct {
 	master_ch_group : ^fcore.CHANNELGROUP,
 }
 sound_st: Sound_State
+
 
 init_sound :: proc(){
     using fstudio

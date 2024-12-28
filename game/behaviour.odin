@@ -33,8 +33,9 @@ spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color :
 
 
 //
-// : boss
+// : enemies
 boss_states: map[Entity_Handle]Boss_State
+enemy_state: map[Entity_Handle]Enemy_State
 
 REST_DURATION :: 1.0
 STRONG_ATTACK_MULTIPLIER :: 1.5
@@ -159,6 +160,17 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
         return
     }
 
+    state, exists := &boss_states[en.id]
+    if !exists {
+        boss_states[en.id] = Boss_State{
+            current_attack = .Normal_Attack_1,
+            attack_count = 0,
+            rest_timer = REST_DURATION,
+            first_encounter = true,
+        }
+        state = &boss_states[en.id]
+    }
+
 	if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation{
 	   last_speed := en.speed
 	   en.speed = min(en.speed * (1 + delta_t), last_speed)
@@ -231,8 +243,10 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
                 wave_num := gs.wave_number
                 if wave_num <= 9 {
                     reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
+                    state.damage_dealt = false
                 } else if wave_num <= 19 {
                     reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
+                    state.damage_dealt = false
                 }
                 en.attack_timer = ENEMY_ATTACK_COOLDOWN
             }
@@ -240,10 +254,11 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 
         if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
             damage_frame := 7
-            if anim.current_frame == damage_frame && anim.state == .Playing {
+            if anim.current_frame == damage_frame && anim.state == .Playing && !state.damage_dealt {
                 damage := process_enemy_damage(en.target, en.damage)
                 spawn_floating_text(gs, en.target.pos, fmt.tprintf("%d", damage), v4{1, 0.5, 0, 1})
                 en.target.health -= damage
+                state.damage_dealt = true
 
                 if en.target.health <= 0{
                     en.target.health = 0
@@ -531,8 +546,9 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
     player := find_player(gs)
     if player == nil do return
 
-    hit_state.is_hit = true
-    hit_state.hit_timer = hit_state.hit_duration
+    enemy.hit_state.is_hit = true
+    enemy.hit_state.hit_timer = 0.08
+    enemy.hit_state.color_override = v4{1,1,1,1}
 
     if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation {
         enemy.speed *= 0.5
@@ -689,7 +705,7 @@ WAVE_SPAWN_RATE :: 2.0 // Time between enemy spawns
 
 init_wave_config :: proc() -> Wave_Config{
     return Wave_Config{
-        base_enemy_count = 1,
+        base_enemy_count = 3,
         enemy_count_increase = 3,
         max_enemy_count = 30,
         base_difficulty = 1.0,
