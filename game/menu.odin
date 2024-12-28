@@ -25,8 +25,14 @@ QUEST_PANEL_HEIGHT :: 600.0
 QUEST_ENTRY_HEIGHT :: 80.0
 QUEST_ENTRY_PADDING :: 10.0
 
+SETTINGS_BUTTON_WIDTH :: 60.0
+SETTINGS_BUTTON_HEIGHT :: 20.0
+SETTINGS_PANEL_WIDTH :: 200.0
+SETTINGS_PANEL_HEIGHT :: 150.0
+
 draw_menu :: proc(gs: ^Game_State) {
 	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
+	draw_settings_button(gs)
 
     if draw_screen_button(play_button){
         start_new_game(gs)
@@ -681,6 +687,70 @@ handle_quest_click :: proc(gs: ^Game_State, kind: Quest_Kind) {
             activate_quest(gs, kind)
         case .Active:
             deactivate_quest(gs)
+    }
+}
+
+draw_settings_button :: proc(gs: ^Game_State) {
+    if gs.state_kind != .MENU do return
+
+    button := make_centered_screen_button(
+        window_w - SETTINGS_BUTTON_WIDTH - 600,
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT,
+        "Settings",
+        text_scale = 0.4,
+    )
+
+    if draw_screen_button(button){
+        gs.state_kind = .SETTINGS
+    }
+}
+
+draw_settings_panel :: proc(gs: ^Game_State) {
+    draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+
+    panel_pos := v2{0,0}
+    panel_bounds := AABB {
+        panel_pos.x - SETTINGS_PANEL_WIDTH * 0.5,
+        panel_pos.y - SETTINGS_PANEL_HEIGHT * 0.5,
+        panel_pos.x + SETTINGS_PANEL_WIDTH * 0.5,
+        panel_pos.y + SETTINGS_PANEL_WIDTH * 0.5,
+    }
+
+    draw_rect_aabb(
+        v2{panel_bounds.x, panel_bounds.y},
+        v2{SETTINGS_PANEL_WIDTH, SETTINGS_PANEL_HEIGHT},
+        col = v4{0.2, 0.2, 0.2, 0.9},
+    )
+
+        title_pos := v2{panel_bounds.x + 20, panel_bounds.w - 30}
+    draw_text(title_pos, "Settings", scale = 0.6)
+
+    tutorial_button := make_screen_button(
+        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
+        f32(window_h) * 0.5 - 10,
+        SETTINGS_BUTTON_WIDTH * 2,
+        SETTINGS_BUTTON_HEIGHT,
+        fmt.tprintf("Tutorial: %v", gs.settings.tutorial_enabled ? "ON" : "OFF"),
+        text_scale = 0.4,
+    )
+
+    if draw_screen_button(tutorial_button) {
+        gs.settings.tutorial_enabled = !gs.settings.tutorial_enabled
+        gs.tutorial.enabled = gs.settings.tutorial_enabled
+    }
+
+    back_button := make_screen_button(
+        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
+        f32(window_h) * 0.5 + 30,
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT,
+        "Back",
+        text_scale = 0.4,
+    )
+
+    if draw_screen_button(back_button) {
+        gs.state_kind = .MENU
     }
 }
 

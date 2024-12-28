@@ -72,10 +72,15 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
 
-
     gs.wave_config = init_wave_config()
 
     gs.ui_hot_reload = init_ui_hot_reload()
+
+    gs.settings = Settings_State{
+        tutorial_enabled = true,
+    }
+
+    init_tutorial(gs)
 
 	init_game_systems(gs)
 }
@@ -367,7 +372,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 9
+    gs.wave_number = 0
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -466,6 +471,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 
 	#partial switch gs.state_kind {
 	case .PLAYING, .SKILLS, .QUESTS:
+	    update_tutorial(gs)
 	    update_clouds(gs, delta_t)
 	    update_quest_progress(gs)
 	    i := 0
@@ -626,8 +632,9 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 	#partial switch gs.state_kind {
 	case .MENU:
-       // draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
-		draw_menu(gs)
+       draw_menu(gs)
+    case .SETTINGS:
+        draw_settings_panel(gs)
 	case .PLAYING:
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
 		for en in gs.entities {
@@ -679,6 +686,8 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 				break
 			}
 		}
+
+        draw_tutorial_message(gs)
 
         draw_wave_button(gs)
         draw_skills_button(gs)
@@ -1903,4 +1912,123 @@ draw_clouds :: proc(cloud: ^Entity) {
         xform = xform,
         color_override = color
     )
+}
+
+//
+// : tutorial
+init_tutorial :: proc(gs: ^Game_State){
+    gs.tutorial = Tutorial_State {
+        enabled = true,
+        messages = make(map[int]Tutorial_Message),
+        seen_messages = make(map[int]bool),
+    }
+
+    gs.tutorial.messages[0] = Tutorial_Message{
+        text = "Press the button to start the wave",
+        target_element = .Wave_Button,
+        size = v2{200, 60},
+    }
+
+    gs.tutorial.messages[1] = Tutorial_Message{
+        text = "Each wave gets progressively harder. Every 10th wave has a stronger Boss enemy.",
+        target_element = .Wave_Button,
+        size = v2{200, 80},
+    }
+
+    gs.tutorial.messages[2] = Tutorial_Message{
+        text = "Open the Shop to upgrade your character using points earned from defeating enemies",
+        target_element = .Shop_Button,
+        size = v2{200, 80},
+    }
+
+    gs.tutorial.messages[3] = Tutorial_Message{
+        text = "Spend your points to ugprade various stats. Higher stats help you survive tougher waves.",
+        target_element = .Shop_Menu,
+        size = v2{200, 80},
+    }
+}
+
+draw_tutorial_message :: proc(gs: ^Game_State) {
+    if !gs.tutorial.enabled do return
+
+    message, exists := gs.tutorial.messages[gs.tutorial.current_step]
+    if !exists || gs.tutorial.seen_messages[gs.tutorial.current_step] do return
+
+    pos := calculate_message_position(message.target_element, message.size)
+
+    draw_rect_aabb(
+        pos,
+        message.size,
+        col = v4{0.2, 0.2, 0.2, 0.9},
+    )
+
+    text_pos := pos + v2{10, message.size.y - 20}
+    draw_text(text_pos, message.text, scale = 0.4)
+
+    continue_text := "Click to continue..."
+    continue_pos := pos + v2{10,10}
+    draw_text(continue_pos, continue_text, scale = 0.3, color = v4{0.7, 0.7, 0.7, 1.0})
+}
+
+calculate_message_position :: proc(element: Tutorial_Element, size: Vector2) -> Vector2{
+    #partial switch element {
+        case .Wave_Button:
+            return v2{-100, 50}
+        case .Shop_Button:
+            return v2{-240, 50}
+        case .Shop_Menu:
+            return v2{0,0}
+    }
+
+    return v2{}
+}
+
+update_tutorial :: proc(gs: ^Game_State) {
+    if !gs.tutorial.enabled do return
+
+    if key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+        message, exists := gs.tutorial.messages[gs.tutorial.current_step]
+        if exists && !gs.tutorial.seen_messages[gs.tutorial.current_step] {
+            gs.tutorial.seen_messages[gs.tutorial.current_step] = true
+
+             switch gs.tutorial.current_step {
+                case 0:
+                    if gs.wave_status == .IN_PROGRESS {
+                        gs.tutorial.current_step = 1
+                    }
+                case 1:
+                    if gs.wave_status == .COMPLETED {
+                        gs.tutorial.current_step = 2
+                    }
+                case 2:
+                    if gs.state_kind == .SHOP {
+                        gs.tutorial.current_step = 3
+                        gs.tutorial.shop_opened = true
+                    }
+            }
+        }
+    }
+
+    if !gs.tutorial.seen_messages[gs.tutorial.current_step] {
+        return
+    }
+
+    switch gs.tutorial.current_step {
+        case 0:
+            if gs.wave_status == .IN_PROGRESS {
+                gs.tutorial.current_step = 1
+                gs.tutorial.seen_messages[1] = false
+            }
+        case 1:
+            if gs.wave_status == .COMPLETED {
+                gs.tutorial.current_step = 2
+                gs.tutorial.seen_messages[2] = false
+            }
+        case 2:
+            if gs.state_kind == .SHOP && !gs.tutorial.shop_opened {
+                gs.tutorial.current_step = 3
+                gs.tutorial.seen_messages[3] = false
+                gs.tutorial.shop_opened = true
+            }
+    }
 }

@@ -40,6 +40,7 @@ Game_State_Kind :: enum {
 	GAME_OVER,
 	SKILLS,
 	QUESTS,
+	SETTINGS,
 }
 
 Game_State :: struct {
@@ -68,6 +69,8 @@ Game_State :: struct {
     ui_hot_reload: UI_Hot_Reload,
     hit_color_override: v4,
     cloud_spawn_timer: f32,
+    settings: Settings_State,
+    tutorial: Tutorial_State,
 }
 
 Enemy_Target :: struct {
@@ -411,4 +414,30 @@ Cloud_Layer :: struct {
         min: f32,
         max: f32,
     }
+}
+
+Tutorial_Message :: struct {
+    text: string,
+    target_element: Tutorial_Element,
+    position: Vector2,
+    size: Vector2,
+    active: bool,
+}
+
+Tutorial_Element :: enum {
+    Wave_Button,
+    Shop_Button,
+    Shop_Menu,
+}
+
+Tutorial_State :: struct {
+    enabled: bool,
+    current_step: int,
+    messages: map[int]Tutorial_Message,
+    seen_messages: map[int]bool,
+    shop_opened: bool,
+}
+
+Settings_State :: struct {
+    tutorial_enabled: bool,
 }
