@@ -531,7 +531,8 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
     player := find_player(gs)
     if player == nil do return
 
-    play_animation_by_name(&enemy.animations, "enemy1_10_hit")
+    hit_state.is_hit = true
+    hit_state.hit_timer = hit_state.hit_duration
 
     if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation {
         enemy.speed *= 0.5

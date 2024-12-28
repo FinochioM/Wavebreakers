@@ -513,6 +513,16 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 			}
 			if en.kind == .enemy {
 				process_enemy_behaviour(&en, gs, f32(delta_t))
+			    if hit_state.is_hit {
+                    hit_state.hit_timer -= f32(delta_t)
+                    if hit_state.hit_timer <= 0 {
+                        hit_state.is_hit = false
+                        hit_state.hit_timer = 0
+                        gs.hit_color_override = v4{255,255,255,0}
+                    } else {
+                        gs.hit_color_override = v4{255,255,255,1}
+                    }
+                }
 			}
 			if en.kind == .player_projectile {
 				SUB_STEPS :: 4
@@ -584,6 +594,8 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 	alpha := f32(accumulator) / f32(sims_per_second)
 
+
+
 	#partial switch gs.state_kind {
 	case .MENU:
        // draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map)
@@ -603,9 +615,10 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 				draw_player(&en)
 			case .enemy, .player_projectile:
 				render_pos := linalg.lerp(en.prev_pos, en.pos, alpha)
+				hit_color_override := gs.hit_color_override
 
 				if en.kind == .enemy {
-					draw_enemy_at_pos(&en, render_pos)
+					draw_enemy_at_pos(&en, render_pos, hit_color_override)
 				} else if en.kind == .player_projectile {
 					draw_player_projectile_at_pos(en, render_pos)
 				}
@@ -788,7 +801,7 @@ draw_player :: proc(en: ^Entity) {
     draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
 }
 
-draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
+draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2, color_override := v4{0,0,0,0}) {
 	xform := Matrix4(1)
 
 	if en.enemy_type == 10 || en.enemy_type == 20{
@@ -797,7 +810,7 @@ draw_enemy_at_pos :: proc(en: ^Entity, pos: Vector2) {
 	   xform *= xform_scale(v2{0.7, 0.7})
 	}
 
-	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform)
+	draw_current_animation(&en.animations, en.pos, pivot = .bottom_center, xform = xform, color_override = color_override)
 }
 
 should_spawn_projectile :: proc(en: ^Entity) -> bool {
@@ -1487,10 +1500,10 @@ get_current_frame :: proc(anim: ^Animation) -> Image_Id {
     return frame
 }
 
-draw_animated_sprite :: proc(pos: Vector2, anim: ^Animation, pivot := Pivot.bottom_left, xform := Matrix4(1)){
+draw_animated_sprite :: proc(pos: Vector2, anim: ^Animation, pivot := Pivot.bottom_left, xform := Matrix4(1), color_override := v4{0,0,0,0}){
     if anim == nil do return
     current_frame := get_current_frame(anim)
-    draw_sprite(pos, current_frame, pivot, xform)
+    draw_sprite(pos, current_frame, pivot, xform, color_override)
 }
 
 play_animation :: proc(anim: ^Animation){
@@ -1575,13 +1588,13 @@ update_current_animation :: proc(collection: ^Animation_Collection, delta_t: f32
     }
 }
 
-draw_current_animation :: proc(collection: ^Animation_Collection, pos: Vector2, pivot := Pivot.bottom_left, xform := Matrix4(1)) {
+draw_current_animation :: proc(collection: ^Animation_Collection, pos: Vector2, pivot := Pivot.bottom_left, xform := Matrix4(1), color_override := v4{0,0,0,0}) {
     if collection == nil || collection.current_animation == "" {
         fmt.println("Warning: Empty animation collection or no current animation")
         return
     }
     if anim, ok := &collection.animations[collection.current_animation]; ok {
-        draw_animated_sprite(pos, anim, pivot, xform)
+        draw_animated_sprite(pos, anim, pivot, xform, color_override)
     }else {
         fmt.println("Warning: Animation not found in collection:", collection.current_animation)
     }

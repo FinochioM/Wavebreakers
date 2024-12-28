@@ -66,6 +66,7 @@ Game_State :: struct {
     active_quest: Maybe(Quest_Kind),
     quest_scroll_offset: f32,
     ui_hot_reload: UI_Hot_Reload,
+    hit_color_override: v4,
 }
 
 Enemy_Target :: struct {
@@ -370,4 +371,15 @@ Boss_State :: struct {
     rest_timer: f32,
     first_encounter: bool,
     damage_dealt: bool,
+}
+
+Hit_State :: struct {
+    is_hit: bool,
+    hit_timer: f32,
+    hit_duration: f32,
+}
+
+hit_state: Hit_State = {
+    hit_timer = 0,
+    hit_duration = 0.08,
 }
