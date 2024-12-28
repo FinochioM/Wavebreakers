@@ -251,14 +251,21 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
                 .enemy1_10_5_move,.enemy1_10_6_move,.enemy1_10_7_move,.enemy1_10_8_move
             }
             enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy1_10_move")
+
             enemy_attack_frames: []Image_Id = {
                 .enemy1_10_1_attack,.enemy1_10_2_attack,.enemy1_10_3_attack,.enemy1_10_4_attack,
                 .enemy1_10_5_attack,.enemy1_10_6_attack,.enemy1_10_7_attack,.enemy1_10_8_attack
             }
             enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, false, "enemy1_10_attack")
 
+            enemy_hit_frames: []Image_Id = {
+                .enemy1_10_hit1, .enemy1_10_hit2, .enemy1_10_hit3, .enemy1_10_hit4,
+            }
+            enemy_hit_anim := create_animation(enemy_hit_frames, 0.1, false, "enemy1_10_hit")
+
         	add_animation(&e.animations, enemy_move_anim)
         	add_animation(&e.animations, enemy_attack_anim)
+        	add_animation(&e.animations, enemy_hit_anim)
         }else if wave_num <= 20{
             e.enemy_type = 2
             enemy2_move_frames: []Image_Id = {
@@ -271,14 +278,6 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         }
 
         e.value = e.enemy_type * 2
-    }
-
-    if wave_num <= 9 {
-        play_animation_by_name(&e.animations, "enemy1_10_move")
-    }else if wave_num == 10{
-        play_animation_by_name(&e.animations, "boss10_move")
-    }else if wave_num <= 19{
-        play_animation_by_name(&e.animations, "enemy11_19_move")
     }
 
     base_health := 150 + (e.enemy_type - 1) * 10

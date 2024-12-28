@@ -152,7 +152,7 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 BOSS_ATTACK_RANGE :: 70.0
 BOSS_ATTACK_COOLDOWN :: 1.0
 ENEMY_ATTACK_RANGE :: 20.0
-ENEMY_ATTACK_COOLDOWN :: 2.0
+ENEMY_ATTACK_COOLDOWN :: 1.0
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     if en.enemy_type == 10 {
         process_boss_behaviour(en, gs, delta_t)
@@ -177,13 +177,36 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	direction := en.target.pos - en.pos
 	distance := linalg.length(direction)
 
+    if en.animations.current_animation == "enemy1_10_hit" {
+    if anim, ok := &en.animations.animations["enemy1_10_hit"]; ok {
+        if anim.current_frame >= len(anim.frames) - 1 {
+            wave_num := gs.wave_number
+            if en.state == .moving {
+                if wave_num <= 9 {
+                    play_animation_by_name(&en.animations, "enemy1_10_move")
+                } else if wave_num <= 19 {
+                    play_animation_by_name(&en.animations, "enemy11_19_move")
+                }
+            } else if en.state == .attacking {
+                if wave_num <= 9 {
+                        play_animation_by_name(&en.animations, "enemy1_10_attack")
+                } else if wave_num <= 19 {
+                        play_animation_by_name(&en.animations, "enemy11_19_attack")
+                    }
+                }
+            }
+        }
+    }
+
 	#partial switch en.state {
 	case .moving:
-	    wave_num := gs.wave_number
-	    if wave_num <= 9 {
-	       play_animation_by_name(&en.animations, "enemy1_10_move")
-	    }else if wave_num <= 19 {
-	       play_animation_by_name(&en.animations, "enemy11_19_move")
+	   if en.animations.current_animation != "enemy1_10_hit" {
+       	    wave_num := gs.wave_number
+    	    if wave_num <= 9 {
+    	       play_animation_by_name(&en.animations, "enemy1_10_move")
+    	    }else if wave_num <= 19 {
+    	       play_animation_by_name(&en.animations, "enemy11_19_move")
+    	    }
 	    }
 
 		if distance <= ENEMY_ATTACK_RANGE {
@@ -203,15 +226,16 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
         en.prev_pos = en.pos
         en.speed = 0
         en.attack_timer -= delta_t
-
-        if en.attack_timer <= 0 {
-            wave_num := gs.wave_number
-            if wave_num <= 9 {
-                reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
-            } else if wave_num <= 19 {
-                reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
+        if en.animations.current_animation != "enemy1_10_hit" {
+            if en.attack_timer <= 0 {
+                wave_num := gs.wave_number
+                if wave_num <= 9 {
+                    reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
+                } else if wave_num <= 19 {
+                    reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
+                }
+                en.attack_timer = ENEMY_ATTACK_COOLDOWN
             }
-            en.attack_timer = ENEMY_ATTACK_COOLDOWN
         }
 
         if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
@@ -506,6 +530,8 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
 when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: ^Entity) {
     player := find_player(gs)
     if player == nil do return
+
+    play_animation_by_name(&enemy.animations, "enemy1_10_hit")
 
     if gs.active_quest != nil && gs.active_quest.? == .Time_Dilation {
         enemy.speed *= 0.5

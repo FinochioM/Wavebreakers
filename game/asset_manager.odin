@@ -14,8 +14,11 @@ import stbtt "vendor:stb/truetype"
 //
 Image_Id :: enum {
 	nil,
+	// MAP
 	background_map0,
 	background_map1,
+
+	// PLAYER
 	player_attack1,
 	player_attack2,
 	player_attack3,
@@ -33,6 +36,8 @@ Image_Id :: enum {
 	player_idle7,
 	player_idle8,
 	player_projectile,
+
+	// ENEMIES
 	enemy1_10_1_move,
 	enemy1_10_2_move,
 	enemy1_10_3_move,
@@ -49,6 +54,21 @@ Image_Id :: enum {
 	enemy1_10_6_attack,
 	enemy1_10_7_attack,
 	enemy1_10_8_attack,
+	enemy1_10_hit1,
+	enemy1_10_hit2,
+	enemy1_10_hit3,
+	enemy1_10_hit4,
+	enemy11_19_1_move,
+	enemy11_19_2_move,
+	enemy11_19_3_move,
+	enemy11_19_4_move,
+	enemy11_19_5_move,
+	enemy11_19_6_move,
+	enemy11_19_7_move,
+	enemy11_19_8_move,
+
+
+	// BOSSES
 	boss10_run_1,
 	boss10_run_2,
 	boss10_run_3,
@@ -73,14 +93,7 @@ Image_Id :: enum {
 	boss10_attack2_6,
 	boss10_attack2_7,
 	boss10_attack2_8,
-	enemy11_19_1_move,
-	enemy11_19_2_move,
-	enemy11_19_3_move,
-	enemy11_19_4_move,
-	enemy11_19_5_move,
-	enemy11_19_6_move,
-	enemy11_19_7_move,
-	enemy11_19_8_move,
+
 	boss20,
 }
 
