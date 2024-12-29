@@ -194,8 +194,9 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	}
 
 	if en.target == nil do return
-	direction := en.target.pos - en.pos
-	distance := linalg.length(direction)
+
+    x_direction := en.target.pos.x - en.pos.x
+    x_distance := abs(x_direction)
 
 	#partial switch en.state {
 	case .moving:
@@ -208,17 +209,17 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 	        }
 	    }
 
-		if distance <= ENEMY_ATTACK_RANGE {
+		if x_distance <= ENEMY_ATTACK_RANGE {
 			en.state = .attacking
 			en.attack_timer = 0
 			state.damage_dealt = false
-		}else if distance > 2.0{
+		}else if x_distance > 2.0{
 		    en.prev_pos = en.pos
-		    direction = linalg.normalize(direction)
-		    en.pos += direction * en.speed * delta_t
+		    x_direction = x_direction > 0 ? 1.0 : -1.0
+		    en.pos.x += f32(x_direction) * f32(en.speed) * f32(delta_t)
 		}
 	case .attacking:
-		if distance > ENEMY_ATTACK_RANGE {
+		if x_distance > ENEMY_ATTACK_RANGE {
 			en.state = .moving
 			return
 		}
@@ -708,7 +709,7 @@ init_wave_config :: proc() -> Wave_Config{
 
         health_scale = 0.08,
         damage_scale = 0.06,
-        speed_scale = 0.02,
+        speed_scale = 0.01,
     }
 }
 

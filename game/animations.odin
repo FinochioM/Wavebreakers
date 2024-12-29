@@ -1,4 +1,5 @@
 package main
+import "core:fmt"
 
 setup_boss_10_animations :: proc(e: ^Entity) {
     boss10_move_frames: []Image_Id = {
@@ -46,6 +47,12 @@ setup_enemy_type_1_animations :: proc(e: ^Entity) {
 
 	add_animation(&e.animations, enemy_move_anim)
 	add_animation(&e.animations, enemy_attack_anim)
+
+    enemy_attack_anim.state = .Playing
+    enemy_attack_anim.current_frame = 0
+    enemy_attack_anim.frame_timer = 0
+
+    play_animation_by_name(&e.animations, "enemy1_10_move")
 }
 
 setup_enemy_type_2_animations :: proc(e: ^Entity) {
@@ -53,14 +60,22 @@ setup_enemy_type_2_animations :: proc(e: ^Entity) {
         .enemy11_19_move1, .enemy11_19_move2, .enemy11_19_move3, .enemy11_19_move4,
         .enemy11_19_move5, .enemy11_19_move6, .enemy11_19_move7, .enemy11_19_move8,
     }
+
     enemy2_move_anim := create_animation(enemy2_move_frames, 0.14, true, "enemy11_19_move")
 
     enemy2_attack_frames: []Image_Id = {
         .enemy11_19_attack1, .enemy11_19_attack2, .enemy11_19_attack3, .enemy11_19_attack4,
         .enemy11_19_attack5, .enemy11_19_attack6, .enemy11_19_attack7, .enemy11_19_attack8,
     }
+
     enemy2_attack_anim := create_animation(enemy2_attack_frames, 0.1, false, "enemy11_19_attack")
 
     add_animation(&e.animations, enemy2_move_anim)
     add_animation(&e.animations, enemy2_attack_anim)
+
+    enemy2_move_anim.state = .Playing
+    enemy2_move_anim.current_frame = 0
+    enemy2_move_anim.frame_timer = 0
+
+    play_animation_by_name(&e.animations, "enemy11_19_move")
 }

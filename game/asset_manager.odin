@@ -45,6 +45,8 @@ Image_Id :: enum {
 	player_projectile,
 
 	// ENEMIES
+
+	// ENEMY 1
 	enemy1_10_1_move,
 	enemy1_10_2_move,
 	enemy1_10_3_move,
@@ -65,6 +67,8 @@ Image_Id :: enum {
 	enemy1_10_hit2,
 	enemy1_10_hit3,
 	enemy1_10_hit4,
+
+	// ENEMY 2
     enemy11_19_move1,
     enemy11_19_move2,
     enemy11_19_move3,

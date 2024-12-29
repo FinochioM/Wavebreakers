@@ -235,6 +235,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         if e.enemy_type == 1 {
             setup_enemy_type_1_animations(e)
         }else if e.enemy_type == 2{
+            fmt.println("Setting up enemy type 2")
             setup_enemy_type_2_animations(e)
         }
 
@@ -328,7 +329,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 0
+    gs.wave_number = 10
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
