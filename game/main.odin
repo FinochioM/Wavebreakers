@@ -69,6 +69,8 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.state_kind = .MENU
     gs.wave_status = .WAITING
 
+    ui_state = init_ui_system()
+
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
 
@@ -79,6 +81,7 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
     gs.settings = Settings_State{
         tutorial_enabled = true,
     }
+
 
     init_tutorial(gs)
 
@@ -617,7 +620,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 game_res_w :: 512
 game_res_h :: 256
 
-render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
+render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
 	using linalg
 	player: Entity
 
@@ -629,12 +632,13 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 	alpha := f32(accumulator) / f32(sims_per_second)
 
-
 	#partial switch gs.state_kind {
 	case .MENU:
-       draw_menu(gs)
+       ui_state.active_screen = "main_menu"
+       draw_ui(&ui_state)
     case .SETTINGS:
-        draw_settings_panel(gs)
+        ui_state.active_screen = "settings"
+        draw_ui(&ui_state)
 	case .PLAYING:
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
 		for en in gs.entities {
@@ -2031,4 +2035,264 @@ update_tutorial :: proc(gs: ^Game_State) {
                 gs.tutorial.shop_opened = true
             }
     }
+}
+
+//
+// :ui
+init_ui_system :: proc() -> UI_State {
+    state := UI_State{
+        screens = make(map[string]UI_Screen),
+        active_screen = "",
+        hot_config = init_ui_hot_reload(),
+    }
+
+    init_main_menu(&state)
+    init_settings_screen(&state)
+
+    return state
+}
+
+create_ui_element :: proc(
+    id: string,
+    kind: UI_Element_Kind,
+    layout: UI_Layout,
+    style: UI_Style,
+) -> ^UI_Element {
+    element := new(UI_Element)
+    element.id = strings.clone(id)
+    element.kind = kind
+    element.layout = layout
+    element.style = style
+    element.children = make([dynamic]^UI_Element)
+    element.is_visible = true
+    return element
+}
+
+add_child :: proc(parent: ^UI_Element, child: ^UI_Element){
+    child.parent = parent
+    append(&parent.children, child)
+}
+
+calculate_absolute_position :: proc(element: ^UI_Element) -> Vector2 {
+    if element == nil do return Vector2{}
+
+    parent_pos := Vector2{}
+    parent_size := Vector2{f32(window_w), f32(window_h)}
+
+    if element.parent != nil {
+        parent_pos = calculate_absolute_position(element.parent)
+        parent_size = element.parent.layout.size
+    }
+
+    anchor_offset := Vector2{
+        element.layout.anchor.x * parent_size.x,
+        element.layout.anchor.y * parent_size.y,
+    }
+
+    pivot_offset := Vector2{
+        element.layout.pivot.x * element.layout.size.x,
+        element.layout.pivot.y * element.layout.size.y,
+    }
+
+    final_pos := parent_pos + anchor_offset - pivot_offset + element.layout.position
+
+    fmt.printf(
+        "Element %s position: final=%v parent=%v anchor=%v pivot=%v pos=%v\n",
+        element.id,
+        final_pos,
+        parent_pos,
+        anchor_offset,
+        pivot_offset,
+        element.layout.position,
+    )
+
+    return final_pos
+}
+
+calculate_screen_bounds :: proc(element: ^UI_Element) -> Screen_Bounds {
+    if element.kind != .Button do return Screen_Bounds{}
+
+    screen_x := (f32(window_w) - element.layout.size.x) * 0.5 + element.layout.position.x
+    screen_y := element.layout.position.y - element.layout.size.y * 0.5
+
+    if screen_x < -window_w || screen_x > window_w * 2 ||
+       screen_y < -window_h || screen_y > window_h * 2 {
+        fmt.println("Warning: Button coordinates outside expected range:",
+            screen_x, screen_y, element.id)
+    }
+
+    screen_bounds := AABB{
+        screen_x,
+        screen_y,
+        screen_x + element.layout.size.x,
+        screen_y + element.layout.size.y,
+    }
+
+    bl := screen_to_ndc(Vector2{screen_bounds.x, screen_bounds.y + element.layout.size.y})
+    tr := screen_to_ndc(Vector2{screen_bounds.z, screen_bounds.y})
+
+    world_bounds := AABB{
+        bl.x * game_res_w * 0.5,
+        bl.y * game_res_h * 0.5,
+        tr.x * game_res_w * 0.5,
+        tr.y * game_res_h * 0.5,
+    }
+
+    return Screen_Bounds{screen_bounds, world_bounds}
+}
+
+update_ui_element :: proc(element: ^UI_Element, input: ^Input_State) {
+    if !element.is_visible do return
+
+    HOVER_THRESHOLD :: 2.0
+
+    mouse_pos := window_to_screen(input.mouse_pos)
+
+    if element.kind == .Button {
+        element.screen_bounds = calculate_screen_bounds(element)
+        bounds := element.screen_bounds.screen_bounds
+
+        is_within_bounds := mouse_pos.x >= bounds.x - HOVER_THRESHOLD &&
+                           mouse_pos.x <= bounds.z + HOVER_THRESHOLD &&
+                           mouse_pos.y >= bounds.y - HOVER_THRESHOLD &&
+                           mouse_pos.y <= bounds.w + HOVER_THRESHOLD
+
+        prev_hovered := element.is_hovered
+        element.is_hovered = is_within_bounds
+
+        if !input.click_consumed {
+            if element.is_hovered && key_just_pressed(input^, .LEFT_MOUSE) {
+                element.is_pressed = true
+                if element.on_click != nil {
+                    fmt.printf("Button %s clicked!\n", element.id)
+                    element.on_click(element)
+                    input.click_consumed = true
+                    return
+                }
+            }
+        }
+    }
+
+    if key_just_released(input^, .LEFT_MOUSE) {
+        element.is_pressed = false
+    }
+
+    if !input.click_consumed {
+        for child in element.children {
+            update_ui_element(child, input)
+        }
+    }
+}
+
+draw_ui_element :: proc(element: ^UI_Element) {
+    if !element.is_visible do return
+
+    if element.kind == .Button {
+        element.screen_bounds = calculate_screen_bounds(element)
+
+        color := element.style.background_color
+        mouse_pos := window_to_screen(app_state.input_state.mouse_pos)
+        is_hovered := aabb_contains(element.screen_bounds.screen_bounds, mouse_pos)
+
+        if is_hovered {
+            color.xyz *= 1.2
+
+            if !app_state.input_state.click_consumed &&
+               key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
+                app_state.input_state.click_consumed = true
+                if element.on_click != nil {
+                    element.on_click(element)
+                    play_sound("button_click")
+                }
+            }
+        }
+
+        draw_rect_aabb(
+            v2{element.screen_bounds.world_bounds.x, element.screen_bounds.world_bounds.y},
+            v2{
+                element.screen_bounds.world_bounds.z - element.screen_bounds.world_bounds.x,
+                element.screen_bounds.world_bounds.w - element.screen_bounds.world_bounds.y,
+            },
+            col = color,
+        )
+
+        if element.text != "" {
+            text_width := f32(len(element.text)) * 8 * element.style.text_scale
+            text_height := 16 * element.style.text_scale
+
+            text_pos := v2{
+                element.screen_bounds.world_bounds.x +
+                (element.screen_bounds.world_bounds.z - element.screen_bounds.world_bounds.x - text_width) * 0.5,
+                element.screen_bounds.world_bounds.y +
+                (element.screen_bounds.world_bounds.w - element.screen_bounds.world_bounds.y - text_height) * 0.5,
+            }
+
+            draw_text(text_pos, element.text, scale = auto_cast element.style.text_scale, color = element.style.text_color)
+        }
+    } else {
+        abs_pos := calculate_absolute_position(element)
+        screen_pos := screen_to_ndc(abs_pos)
+        world_pos := Vector2{
+            screen_pos.x * game_res_w * 0.5,
+            screen_pos.y * game_res_h * 0.5,
+        }
+
+        if element.kind == .Panel {
+            draw_rect_aabb(
+                world_pos,
+                element.layout.size,
+                col = element.style.background_color,
+            )
+        }
+
+        if element.kind == .Image && element.image_id != .nil {
+            draw_sprite(
+                world_pos,
+                element.image_id,
+                pivot = .top_left,
+            )
+        }
+
+        if element.text != "" && element.kind != .Button {
+            text_pos := world_pos + element.style.padding
+            draw_text(
+                text_pos,
+                element.text,
+                scale = auto_cast element.style.text_scale,
+                color = element.style.text_color,
+            )
+        }
+    }
+
+    for child in element.children {
+        draw_ui_element(child)
+    }
+}
+
+draw_ui :: proc(state: ^UI_State) {
+    screen, ok := &state.screens[state.active_screen]
+    if !ok do return
+
+    for element in screen.elements {
+        draw_ui_element(element)
+    }
+}
+
+cleanup_ui :: proc(state: ^UI_State) {
+    for _, screen in &state.screens {
+        for element in screen.elements {
+            cleanup_element(element)
+        }
+        delete(screen.elements)
+    }
+    delete(state.screens)
+}
+
+cleanup_element :: proc(element: ^UI_Element) {
+    delete(element.id)
+    for child in element.children {
+        cleanup_element(child)
+    }
+    delete(element.children)
+    free(element)
 }

@@ -30,14 +30,202 @@ SETTINGS_BUTTON_HEIGHT :: 20.0
 SETTINGS_PANEL_WIDTH :: 200.0
 SETTINGS_PANEL_HEIGHT :: 150.0
 
-draw_menu :: proc(gs: ^Game_State) {
-	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
-	draw_settings_button(gs)
+init_main_menu :: proc(state: ^UI_State) {
+    config := get_ui_config(&state.hot_config)
 
-    if draw_screen_button(play_button){
-        start_new_game(gs)
-        gs.state_kind = .PLAYING
+    screen := UI_Screen{
+        elements = make([dynamic]^UI_Element),
+        config = config,
     }
+
+    background := create_ui_element(
+        "main_menu_bg",
+        .Panel,
+        UI_Layout{
+            size = {f32(window_w), f32(window_h)},
+            anchor = {0, 0},
+            pivot = {0, 0},
+        },
+        UI_Style{
+            background_color = {0.1, 0.1, 0.1, 1},
+        },
+    )
+
+    title := create_ui_element(
+        "main_menu_title",
+        .Text,
+        UI_Layout{
+            position = {0, 100},
+            size = {400, 100},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            text_color = {1, 1, 1, 1},
+            text_scale = 2.0,
+            padding = {20, 20},
+        },
+    )
+    title.text = "Wavebreakers"
+
+    play_button := create_ui_element(
+        "play_button",
+        .Button,
+        UI_Layout{
+            position = {0, 500},
+            size = {200, 50},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            background_color = {0.2, 0.4, 0.8, 1},
+            text_color = {1, 1, 1, 1},
+            text_scale = 0.8,
+            padding = {20, 15},
+        },
+    )
+    play_button.text = "Play"
+    play_button.on_click = proc(element: ^UI_Element) {
+        if app_state.game.state_kind == .MENU {
+            start_new_game(&app_state.game)
+            app_state.game.state_kind = .PLAYING
+        }
+    }
+
+    settings_button := create_ui_element(
+        "settings_button",
+        .Button,
+        UI_Layout{
+            position = {0, 600},
+            size = {200, 50},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            background_color = {0.2, 0.4, 0.8, 1},
+            text_color = {1, 1, 1, 1},
+            text_scale = 0.8,
+            padding = {20, 15},
+        },
+    )
+
+    settings_button.text = "Settings"
+    settings_button.on_click = proc(element: ^UI_Element) {
+        if app_state.game.state_kind == .MENU {
+            app_state.game.state_kind = .SETTINGS
+        }
+    }
+
+    add_child(background, title)
+    add_child(background, play_button)
+    add_child(background, settings_button)
+    append(&screen.elements, background)
+
+    state.screens["main_menu"] = screen
+    state.active_screen = "main_menu"
+}
+
+init_settings_screen :: proc(state: ^UI_State) {
+    config := get_ui_config(&state.hot_config)
+    screen := UI_Screen{
+        elements = make([dynamic]^UI_Element),
+        config = config,
+    }
+
+    background := create_ui_element(
+        "settings_bg_overlay",
+        .Panel,
+        UI_Layout{
+            size = {game_res_w * 2, game_res_h * 2},
+            position = {-game_res_w, -game_res_h},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            background_color = {0, 0, 0, 0.5},
+        },
+    )
+
+    panel := create_ui_element(
+        "settings_panel",
+        .Panel,
+        UI_Layout{
+            size = {200, 150},
+            position = {0, 0},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            background_color = {0.2, 0.2, 0.2, 0.9},
+        },
+    )
+
+    title := create_ui_element(
+        "settings_title",
+        .Text,
+        UI_Layout{
+            size = {80, 20},
+            position = {0, 50},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            text_color = {1, 1, 1, 1},
+            text_scale = 0.6,
+        },
+    )
+    title.text = "Settings"
+
+    tutorial_button := create_ui_element(
+        "tutorial_toggle",
+        .Button,
+        UI_Layout{
+            size = {120, 30},
+            position = {0, 0},  // Center
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            background_color = {0.2, 0.4, 0.8, 1},
+            text_color = {1, 1, 1, 1},
+            text_scale = 0.4,
+        },
+    )
+    tutorial_button.text = "Tutorial: ON"
+    tutorial_button.on_click = proc(element: ^UI_Element) {
+        app_state.game.settings.tutorial_enabled = !app_state.game.settings.tutorial_enabled
+        app_state.game.tutorial.enabled = app_state.game.settings.tutorial_enabled
+        element.text = fmt.tprintf("Tutorial: %v",
+            app_state.game.settings.tutorial_enabled ? "ON" : "OFF")
+    }
+
+    back_button := create_ui_element(
+        "settings_back",
+        .Button,
+        UI_Layout{
+            size = {80, 30},
+            position = {0, -50},
+            anchor = {0.5, 0.5},
+            pivot = {0.5, 0.5},
+        },
+        UI_Style{
+            background_color = {0.2, 0.4, 0.8, 1},
+            text_color = {1, 1, 1, 1},
+            text_scale = 0.4,
+        },
+    )
+    back_button.text = "Back"
+    back_button.on_click = proc(element: ^UI_Element) {
+        app_state.game.state_kind = .MENU
+    }
+
+    add_child(panel, title)
+    add_child(panel, tutorial_button)
+    add_child(panel, back_button)
+    append(&screen.elements, background)
+    append(&screen.elements, panel)
+
+    state.screens["settings"] = screen
 }
 
 draw_pause_menu :: proc(gs: ^Game_State) {
@@ -687,70 +875,6 @@ handle_quest_click :: proc(gs: ^Game_State, kind: Quest_Kind) {
             activate_quest(gs, kind)
         case .Active:
             deactivate_quest(gs)
-    }
-}
-
-draw_settings_button :: proc(gs: ^Game_State) {
-    if gs.state_kind != .MENU do return
-
-    button := make_centered_screen_button(
-        window_w - SETTINGS_BUTTON_WIDTH - 600,
-        SETTINGS_BUTTON_WIDTH,
-        SETTINGS_BUTTON_HEIGHT,
-        "Settings",
-        text_scale = 0.4,
-    )
-
-    if draw_screen_button(button){
-        gs.state_kind = .SETTINGS
-    }
-}
-
-draw_settings_panel :: proc(gs: ^Game_State) {
-    draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
-
-    panel_pos := v2{0,0}
-    panel_bounds := AABB {
-        panel_pos.x - SETTINGS_PANEL_WIDTH * 0.5,
-        panel_pos.y - SETTINGS_PANEL_HEIGHT * 0.5,
-        panel_pos.x + SETTINGS_PANEL_WIDTH * 0.5,
-        panel_pos.y + SETTINGS_PANEL_WIDTH * 0.5,
-    }
-
-    draw_rect_aabb(
-        v2{panel_bounds.x, panel_bounds.y},
-        v2{SETTINGS_PANEL_WIDTH, SETTINGS_PANEL_HEIGHT},
-        col = v4{0.2, 0.2, 0.2, 0.9},
-    )
-
-        title_pos := v2{panel_bounds.x + 20, panel_bounds.w - 30}
-    draw_text(title_pos, "Settings", scale = 0.6)
-
-    tutorial_button := make_screen_button(
-        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
-        f32(window_h) * 0.5 - 10,
-        SETTINGS_BUTTON_WIDTH * 2,
-        SETTINGS_BUTTON_HEIGHT,
-        fmt.tprintf("Tutorial: %v", gs.settings.tutorial_enabled ? "ON" : "OFF"),
-        text_scale = 0.4,
-    )
-
-    if draw_screen_button(tutorial_button) {
-        gs.settings.tutorial_enabled = !gs.settings.tutorial_enabled
-        gs.tutorial.enabled = gs.settings.tutorial_enabled
-    }
-
-    back_button := make_screen_button(
-        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
-        f32(window_h) * 0.5 + 30,
-        SETTINGS_BUTTON_WIDTH,
-        SETTINGS_BUTTON_HEIGHT,
-        "Back",
-        text_scale = 0.4,
-    )
-
-    if draw_screen_button(back_button) {
-        gs.state_kind = .MENU
     }
 }
 

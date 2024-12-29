@@ -4,6 +4,8 @@ import sapp "../sokol/app"
 import slog "../sokol/log"
 import "core:math/linalg"
 
+import "core:fmt"
+
 Input_State_Flags :: enum {
 	down,
 	just_pressed,
@@ -19,11 +21,17 @@ Input_State :: struct {
 }
 
 reset_input_state_for_next_frame :: proc(state: ^Input_State) {
-	state.prev_mouse_pos = state.mouse_pos
-	state.click_consumed = false
-	for &set in state.keys {
-		set -= {.just_pressed, .just_released, .repeat}
-	}
+    state.prev_mouse_pos = state.mouse_pos
+    state.click_consumed = false
+
+    // Add debug output to verify reset
+    if state.click_consumed {
+        fmt.println("Resetting click_consumed to false")
+    }
+
+    for &set in state.keys {
+        set -= {.just_pressed, .just_released, .repeat}
+    }
 }
 
 key_just_pressed :: proc(input_state: Input_State, code: Key_Code) -> bool {
