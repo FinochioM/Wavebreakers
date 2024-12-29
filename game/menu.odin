@@ -146,26 +146,12 @@ init_settings_screen :: proc(state: ^UI_State) {
         },
     )
 
-    panel := create_ui_element(
-        "settings_panel",
-        .Panel,
-        UI_Layout{
-            size = {200, 150},
-            position = {0, 0},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.2, 0.2, 0.9},
-        },
-    )
-
     title := create_ui_element(
         "settings_title",
         .Text,
         UI_Layout{
             size = {80, 20},
-            position = {0, 50},
+            position = {500, 50},
             anchor = {0.5, 0.5},
             pivot = {0.5, 0.5},
         },
@@ -180,8 +166,8 @@ init_settings_screen :: proc(state: ^UI_State) {
         "tutorial_toggle",
         .Button,
         UI_Layout{
+            position = {0, 50},
             size = {120, 30},
-            position = {0, 0},  // Center
             anchor = {0.5, 0.5},
             pivot = {0.5, 0.5},
         },
@@ -204,7 +190,7 @@ init_settings_screen :: proc(state: ^UI_State) {
         .Button,
         UI_Layout{
             size = {80, 30},
-            position = {0, -50},
+            position = {0, 70},
             anchor = {0.5, 0.5},
             pivot = {0.5, 0.5},
         },
@@ -219,11 +205,10 @@ init_settings_screen :: proc(state: ^UI_State) {
         app_state.game.state_kind = .MENU
     }
 
-    add_child(panel, title)
-    add_child(panel, tutorial_button)
-    add_child(panel, back_button)
+    add_child(background, title)
+    add_child(background, tutorial_button)
+    add_child(background, back_button)
     append(&screen.elements, background)
-    append(&screen.elements, panel)
 
     state.screens["settings"] = screen
 }

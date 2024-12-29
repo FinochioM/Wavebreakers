@@ -2096,16 +2096,6 @@ calculate_absolute_position :: proc(element: ^UI_Element) -> Vector2 {
 
     final_pos := parent_pos + anchor_offset - pivot_offset + element.layout.position
 
-    fmt.printf(
-        "Element %s position: final=%v parent=%v anchor=%v pivot=%v pos=%v\n",
-        element.id,
-        final_pos,
-        parent_pos,
-        anchor_offset,
-        pivot_offset,
-        element.layout.position,
-    )
-
     return final_pos
 }
 
