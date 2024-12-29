@@ -2,7 +2,6 @@ package main
 
 import "core:fmt"
 import sapp "../sokol/app"
-import "core:strings"
 
 MENU_BUTTON_WIDTH :: 100.0
 MENU_BUTTON_HEIGHT :: 50.0
@@ -31,445 +30,159 @@ SETTINGS_BUTTON_HEIGHT :: 20.0
 SETTINGS_PANEL_WIDTH :: 200.0
 SETTINGS_PANEL_HEIGHT :: 150.0
 
-init_main_menu :: proc(state: ^UI_State) {
-    config := get_ui_config(&state.hot_config)
-    screen := UI_Screen{
-        elements = make([dynamic]^UI_Element),
-        config = config,
+draw_menu :: proc(gs: ^Game_State) {
+	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
+	draw_settings_button(gs)
+
+    if draw_screen_button(play_button){
+        start_new_game(gs)
+        gs.state_kind = .PLAYING
     }
-
-    background := create_ui_element(
-        "main_menu_bg",
-        .Panel,
-        UI_Layout{
-            size = {f32(window_w), f32(window_h)},
-            position = {0, 0},         // Center position
-            anchor = {0.5, 0.5},       // Anchor at center
-            pivot = {0.5, 0.5},        // Pivot at center
-        },
-        UI_Style{
-            background_color = {0.1, 0.1, 0.1, 1},
-        },
-    )
-
-    content := create_ui_element(
-        "content",
-        .Panel,
-        UI_Layout{
-            size = {600, 400},         // Fixed content size
-            position = {0, 0},         // Center in background
-            anchor = {0.5, 0.5},       // Center anchor
-            pivot = {0.5, 0.5},        // Center pivot
-        },
-        UI_Style{
-            background_color = {0, 0, 0, 0},
-        },
-    )
-    add_child(background, content)
-
-    text_content := "Wavebreakers"
-    text_dims := get_text_dimensions(text_content, 2.0)
-    title := create_ui_element(
-        "main_menu_title",
-        .Text,
-        UI_Layout{
-            size = text_dims,
-            position = {0, 100},       // Y position relative to content
-            anchor = {0.5, 0.5},       // Center in parent
-            pivot = {0.5, 0.5},        // Center pivot
-        },
-        UI_Style{
-            text_color = {1, 1, 1, 1},
-            text_scale = 2.0,
-        },
-    )
-    title.text = text_content
-    add_child(content, title)
-
-    play_button := create_ui_element(
-        "play_button",
-        .Button,
-        UI_Layout{
-            size = {100, 20},
-            position = {0, 0},         // Center of content
-            anchor = {0.5, 0.5},       // Center in parent
-            pivot = {0.5, 0.5},        // Center pivot
-        },
-        UI_Style{
-            background_color = {0.2, 0.4, 0.8, 1},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.8,
-        },
-    )
-    play_button.text = "Play"
-    play_button.on_click = proc(element: ^UI_Element) {
-        if app_state.game.state_kind == .MENU {
-            start_new_game(&app_state.game)
-            app_state.game.state_kind = .PLAYING
-        }
-    }
-    add_child(content, play_button)
-
-    settings_button := create_ui_element(
-        "settings_button",
-        .Button,
-        UI_Layout{
-            size = {100, 20},
-            position = {0, -50},      // Below play button
-            anchor = {0.5, 0.5},       // Center in parent
-            pivot = {0.5, 0.5},        // Center pivot
-        },
-        UI_Style{
-            background_color = {0.2, 0.4, 0.8, 1},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.8,
-        },
-    )
-    settings_button.text = "Settings"
-    settings_button.on_click = proc(element: ^UI_Element) {
-        if app_state.game.state_kind == .MENU {
-            app_state.game.state_kind = .SETTINGS
-        }
-    }
-    add_child(content, settings_button)
-
-    append(&screen.elements, background)
-    state.screens["main_menu"] = screen
-    state.active_screen = "main_menu"
 }
 
-init_settings_screen :: proc(state: ^UI_State) {
-    config := get_ui_config(&state.hot_config)
-    screen := UI_Screen{
-        elements = make([dynamic]^UI_Element),
-        config = config,
-    }
+draw_pause_menu :: proc(gs: ^Game_State) {
+	draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
 
-    background := create_ui_element(
-        "settings_bg_overlay",
-        .Panel,
-        UI_Layout{
-            size = {f32(window_w), f32(window_h)},
-            position = {-game_res_w, -game_res_h},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0, 0, 0, 0.5},
-        },
-    )
+	resume_button := make_centered_screen_button(
+		360,
+		PAUSE_MENU_BUTTON_WIDTH,
+		PAUSE_MENU_BUTTON_HEIGHT,
+		"Resume",
+	)
 
-    title := create_ui_element(
-        "settings_title",
-        .Text,
-        UI_Layout{
-            size = {80, 20},
-            position = {500, 50},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.6,
-        },
-    )
-    title.text = "Settings"
+	menu_button := make_centered_screen_button(
+		460,
+		PAUSE_MENU_BUTTON_WIDTH,
+		PAUSE_MENU_BUTTON_HEIGHT,
+		"Main Menu",
+	)
 
-    tutorial_button := create_ui_element(
-        "tutorial_toggle",
-        .Button,
-        UI_Layout{
-            position = {0, 350},
-            size = {120, 30},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.4, 0.8, 1},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.4,
-        },
-    )
-    tutorial_button.text = "Tutorial: ON"
-    tutorial_button.on_click = proc(element: ^UI_Element) {
-        app_state.game.settings.tutorial_enabled = !app_state.game.settings.tutorial_enabled
-        app_state.game.tutorial.enabled = app_state.game.settings.tutorial_enabled
-        if app_state.game.settings.tutorial_enabled {
-            element.text = "Tutorial ON"
-        }else{
-            element.text = "Tutorial OFF"
-        }
-    }
+	if draw_screen_button(resume_button) {
+		gs.state_kind = .PLAYING
+	}
 
-    back_button := create_ui_element(
-        "settings_back",
-        .Button,
-        UI_Layout{
-            size = {80, 30},
-            position = {0, 550},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.4, 0.8, 1},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.4,
-        },
-    )
-    back_button.text = "Back"
-    back_button.on_click = proc(element: ^UI_Element) {
-        app_state.game.state_kind = .MENU
-    }
-
-    add_child(background, title)
-    add_child(background, tutorial_button)
-    add_child(background, back_button)
-    append(&screen.elements, background)
-
-    state.screens["settings"] = screen
+	if draw_screen_button(menu_button) {
+		gs.state_kind = .MENU
+	}
 }
 
-init_pause_menu :: proc(state: ^UI_State) {
-    config := get_ui_config(&state.hot_config)
-    screen := UI_Screen{
-        elements = make([dynamic]^UI_Element),
-        config = config,
+draw_shop_menu :: proc(gs: ^Game_State) {
+    config := get_ui_config(&gs.ui_hot_reload)
+
+    panel_screen_x := (f32(window_w) - config.shop_panel_width) * 0.5
+    panel_screen_y := (f32(window_h) - config.shop_panel_height) * 0.5
+
+    panel_world_pos := screen_to_ndc(Vector2{panel_screen_x, panel_screen_y})
+
+    player := find_player(gs)
+    if player == nil do return
+
+    title_screen_pos := Vector2{
+        panel_screen_x + config.shop_title_offset_x,
+        panel_screen_y + config.shop_title_offset_y,
     }
-
-    background := create_ui_element(
-        "pause_bg_overlay",
-        .Panel,
-        UI_Layout{
-            size = {f32(window_w), f32(window_h)},
-            position = {-game_res_w, -game_res_h},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0, 0, 0, 1.0},
-        },
+    title_world_pos := screen_to_ndc(title_screen_pos)
+    draw_text(
+        v2{title_world_pos.x * game_res_w * 0.5, title_world_pos.y * game_res_h * 0.5},
+        "Shop",
+        scale = f64(config.shop_text_scale_title),
     )
 
-    resume_button := create_ui_element(
-        "resume",
-        .Button,
-        UI_Layout{
-            position = {0, 350},
-            size = {120, 30},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.4, 0.8, 1},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.4,
-        },
-    )
-    resume_button.text = "Resume"
-    resume_button.on_click = proc(element: ^UI_Element) {
-        app_state.game.state_kind = .PLAYING
+    currency_screen_pos := Vector2{
+        panel_screen_x + config.shop_panel_width - config.shop_currency_text_offset_x,
+        panel_screen_y + config.shop_currency_text_offset_y,
     }
-
-    main_menu_button := create_ui_element(
-        "main_menu",
-        .Button,
-        UI_Layout{
-            position = {0, 450},
-            size = {120, 30},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.4, 0.8, 1},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.4,
-        },
-    )
-    main_menu_button.text = "Main Menu"
-    main_menu_button.on_click = proc(element: ^UI_Element) {
-        app_state.game.state_kind = .MENU
-    }
-
-    add_child(background, resume_button)
-    add_child(background, main_menu_button)
-    append(&screen.elements, background)
-
-    state.screens["pause"] = screen
-}
-
-get_upgrade_enum_from_string :: proc(id: string) -> Upgrade_Kind {
-    if !strings.has_prefix(id, "upgrade_") {
-        return .attack_speed
-    }
-
-    kind_str := strings.trim_prefix(id, "upgrade_")
-    switch kind_str {
-        case "attack_speed": return .attack_speed
-        case "accuracy": return .accuracy
-        case "damage": return .damage
-        case "armor": return .armor
-        case "life_steal": return .life_steal
-        case "exp_gain": return .exp_gain
-        case "crit_chance": return .crit_chance
-        case "crit_damage": return .crit_damage
-        case "multishot": return .multishot
-        case "health_regen": return .health_regen
-        case "dodge_chance": return .dodge_chance
-        case "fov_range": return .fov_range
-    }
-    return .attack_speed
-}
-
-create_shop_menu :: proc() -> UI_Screen {
-    screen := UI_Screen{
-        elements = make([dynamic]^UI_Element),
-    }
-
-    // Main container
-    background := create_ui_element(
-        "shop_bg",
-        .Panel,
-        UI_Layout{
-            size = {f32(window_w), f32(window_h)},
-            position = {0, 0},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.2, 0.2, 0.9},
-        },
+    currency_world_pos := screen_to_ndc(currency_screen_pos)
+    currency_text := fmt.tprintf("Currency: %d", gs.currency_points)
+    draw_text(
+        v2{currency_world_pos.x * game_res_w * 0.5, currency_world_pos.y * game_res_h * 0.5},
+        currency_text,
+        scale = f64(config.shop_currency_text_scale),
     )
 
-    // Content area (centers everything and provides padding)
-    content := create_ui_element(
-        "content",
-        .Panel,
-        UI_Layout{
-            size = {1000, 600},  // Fixed content size
-            position = {0, 0},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0, 0, 0, 0},  // Transparent
-            padding = {20, 20},
-        },
-    )
-    add_child(background, content)
-
-    // Title
-    title := create_ui_element(
-        "title",
-        .Text,
-        UI_Layout{
-            size = {200, 50},
-            position = {0, 250},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            text_color = {1, 1, 1, 1},
-            text_scale = 1.2,
-        },
-    )
-    title.text = "Shop"
-    add_child(content, title)
-
-    // Currency
-    currency := create_ui_element(
-        "currency",
-        .Text,
-        UI_Layout{
-            size = {200, 30},
-            position = {450, 250},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.7,
-        },
-    )
-    currency.text = fmt.tprintf("Currency: %d", app_state.game.currency_points)
-    add_child(content, currency)
-
-    // Grid layout
     column_count := 2
     items_per_column := (len(Upgrade_Kind) + column_count - 1) / column_count
-    cell_width := 400
-    cell_height := 100
-    start_x := -200
-    start_y := 150
+    content_width := config.shop_panel_width - config.shop_content_padding
+    column_width := content_width / f32(column_count)
+    button_spacing_y := config.shop_button_spacing_y
 
     for upgrade, i in Upgrade_Kind {
         column := i / items_per_column
         row := i % items_per_column
 
-        x_pos := start_x + column * cell_width
-        y_pos := start_y - row * cell_height
+        button_screen_x := panel_screen_x + config.shop_column_start_offset +
+                          (column_width * f32(column)) +
+                          (column_width - config.shop_button_width) * 0.5
 
-        // Upgrade group
-        group := create_ui_element(
-            fmt.tprintf("group_%v", upgrade),
-            .Panel,
-            UI_Layout{
-                size = {350, 80},
-                position = {f32(x_pos), f32(y_pos)},
-                anchor = {0.5, 0.5},
-                pivot = {0.5, 0.5},
-            },
-            UI_Style{
-                background_color = {0.3, 0.3, 0.3, 0.5},
-                padding = {10, 10},
-            },
+        button_screen_y := panel_screen_y + config.shop_row_start_offset +
+                          (f32(row) * (config.shop_button_height + config.shop_button_spacing_y))
+
+        level := get_upgrade_level(player, upgrade)
+        cost := calculate_upgrade_cost(level)
+        button_text := fmt.tprintf("Cost: %d", cost)
+        button_color := v4{0.2, 0.3, 0.8, 1.0}
+
+        if level >= MAX_UPGRADE_LEVEL {
+            button_color = v4{0.4, 0.4, 0.4, 1.0}
+        } else if gs.currency_points < cost {
+            button_color = v4{0.5, 0.2, 0.2, 1.0}
+        }
+
+        button := make_screen_button(
+            button_screen_x,
+            button_screen_y,
+            config.shop_button_width,
+            config.shop_button_height,
+            button_text,
+            button_color,
+            config.shop_text_scale_button,
         )
 
-        // Add group elements...
-        // (Rest of your group element creation code remains the same)
+        if level < MAX_UPGRADE_LEVEL {
+            if draw_screen_button(button) {
+                try_purchase_upgrade(gs, player, upgrade)
+            }
+        }
 
-        add_child(content, group)
+        name_screen_pos := Vector2{
+            button_screen_x,
+            button_screen_y - config.shop_upgrade_text_offset_y,
+        }
+        name_world_pos := screen_to_ndc(name_screen_pos)
+        upgrade_text := fmt.tprintf("%v (Level %d)", upgrade, level)
+        draw_text(
+            v2{name_world_pos.x * game_res_w * 0.5, name_world_pos.y * game_res_h * 0.5},
+            upgrade_text,
+            scale = f64(config.shop_text_scale_upgrade),
+        )
+
+        if level >= MAX_UPGRADE_LEVEL {
+            max_screen_pos := Vector2{
+                button_screen_x + config.shop_button_width + config.shop_max_text_offset_x,
+                button_screen_y + config.shop_max_text_offset_y,
+            }
+            max_world_pos := screen_to_ndc(max_screen_pos)
+            draw_text(
+                v2{max_world_pos.x * game_res_w * 0.5, max_world_pos.y * game_res_h * 0.5},
+                "MAX",
+                scale = f64(config.shop_text_scale_upgrade),
+                color = v4{1, 0.8, 0, 1},
+            )
+        }
     }
 
-    // Back button
-    back_button := create_ui_element(
-        "back",
-        .Button,
-        UI_Layout{
-            size = {120, 40},
-            position = {0, -250},
-            anchor = {0.5, 0.5},
-            pivot = {0.5, 0.5},
-        },
-        UI_Style{
-            background_color = {0.2, 0.3, 0.8, 1.0},
-            text_color = {1, 1, 1, 1},
-            text_scale = 0.5,
-        },
+    back_button := make_screen_button(
+        panel_screen_x + (config.shop_panel_width - config.shop_back_button_width) * 0.5,
+        panel_screen_y + config.shop_panel_height + config.shop_back_button_offset_y,
+        config.shop_back_button_width,
+        config.shop_back_button_height,
+        "Back",
+        text_scale = config.shop_back_button_text_scale,
     )
-    back_button.text = "Back"
-    back_button.on_click = proc(element: ^UI_Element) {
-        app_state.game.state_kind = .PLAYING
+
+    if draw_screen_button(back_button) {
+        gs.state_kind = .PLAYING
     }
-    add_child(content, back_button)
-
-    append(&screen.elements, background)
-    return screen
-}
-
-init_shop_menu :: proc(gs: ^Game_State) {
-    screen := create_shop_menu()
-    defer cleanup_screen(&screen)
-
-    ui_state.screens["shop"] = screen
-    ui_state.active_screen = "shop"
-    draw_ui(&ui_state)
-}
-
-cleanup_screen :: proc(screen: ^UI_Screen) {
-    for element in screen.elements {
-        cleanup_element(element)
-    }
-    delete(screen.elements)
 }
 
 draw_game_over_screen :: proc(gs: ^Game_State){
@@ -974,6 +687,70 @@ handle_quest_click :: proc(gs: ^Game_State, kind: Quest_Kind) {
             activate_quest(gs, kind)
         case .Active:
             deactivate_quest(gs)
+    }
+}
+
+draw_settings_button :: proc(gs: ^Game_State) {
+    if gs.state_kind != .MENU do return
+
+    button := make_centered_screen_button(
+        window_w - SETTINGS_BUTTON_WIDTH - 600,
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT,
+        "Settings",
+        text_scale = 0.4,
+    )
+
+    if draw_screen_button(button){
+        gs.state_kind = .SETTINGS
+    }
+}
+
+draw_settings_panel :: proc(gs: ^Game_State) {
+    draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+
+    panel_pos := v2{0,0}
+    panel_bounds := AABB {
+        panel_pos.x - SETTINGS_PANEL_WIDTH * 0.5,
+        panel_pos.y - SETTINGS_PANEL_HEIGHT * 0.5,
+        panel_pos.x + SETTINGS_PANEL_WIDTH * 0.5,
+        panel_pos.y + SETTINGS_PANEL_WIDTH * 0.5,
+    }
+
+    draw_rect_aabb(
+        v2{panel_bounds.x, panel_bounds.y},
+        v2{SETTINGS_PANEL_WIDTH, SETTINGS_PANEL_HEIGHT},
+        col = v4{0.2, 0.2, 0.2, 0.9},
+    )
+
+        title_pos := v2{panel_bounds.x + 20, panel_bounds.w - 30}
+    draw_text(title_pos, "Settings", scale = 0.6)
+
+    tutorial_button := make_screen_button(
+        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
+        f32(window_h) * 0.5 - 10,
+        SETTINGS_BUTTON_WIDTH * 2,
+        SETTINGS_BUTTON_HEIGHT,
+        fmt.tprintf("Tutorial: %v", gs.settings.tutorial_enabled ? "ON" : "OFF"),
+        text_scale = 0.4,
+    )
+
+    if draw_screen_button(tutorial_button) {
+        gs.settings.tutorial_enabled = !gs.settings.tutorial_enabled
+        gs.tutorial.enabled = gs.settings.tutorial_enabled
+    }
+
+    back_button := make_screen_button(
+        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
+        f32(window_h) * 0.5 + 30,
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT,
+        "Back",
+        text_scale = 0.4,
+    )
+
+    if draw_screen_button(back_button) {
+        gs.state_kind = .MENU
     }
 }
 

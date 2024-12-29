@@ -263,11 +263,6 @@ Animation_Collection :: struct {
 }
 
 UI_Config :: struct {
-    // Main Menu
-    main_menu_button_color: Vector4,
-    main_menu_text_color: Vector4,
-    main_menu_button_size: Vector2,
-
     // General menu sizing
     menu_button_width: f32,
     menu_button_height: f32,
@@ -371,6 +366,14 @@ UI_Hot_Reload :: struct {
     last_modified_time: time.Time,
 }
 
+Screen_Button :: struct {
+    screen_bounds: AABB,
+    world_bounds: AABB,
+    text: string,
+    text_scale: f32,
+    color: Vector4,
+}
+
 Boss_Attack_State :: enum {
     Normal_Attack_1,
     Strong_Attack,
@@ -437,73 +440,6 @@ Tutorial_State :: struct {
 
 Settings_State :: struct {
     tutorial_enabled: bool,
-}
-
-UI_Element_Kind :: enum {
-    Panel,
-    Button,
-    Text,
-    Image,
-}
-
-UI_Style :: struct {
-    background_color: Vector4,
-    text_color: Vector4,
-    border_color: Vector4,
-    padding: Vector2,
-    margin: Vector2,
-    text_scale: f32,
-}
-
-UI_Layout :: struct {
-    position: Vector2,
-    size: Vector2,
-    anchor: Vector2,
-    pivot: Vector2,
-}
-
-UI_Element :: struct {
-    id: string,
-    kind: UI_Element_Kind,
-    layout: UI_Layout,
-    style: UI_Style,
-    text: string,
-    image_id: Image_Id,
-    children: [dynamic]^UI_Element,
-    parent: ^UI_Element,
-    is_visible: bool,
-    is_hovered: bool,
-    is_pressed: bool,
-    screen_bounds: Screen_Bounds,
-
-    on_click: proc(element: ^UI_Element),
-    on_hover: proc(element: ^UI_Element),
-}
-
-UI_Screen :: struct {
-    elements: [dynamic]^UI_Element,
-    config: UI_Config,
-}
-
-UI_State :: struct {
-    screens: map[string]UI_Screen,
-    active_screen: string,
-    hot_config: UI_Hot_Reload,
-}
-
-ui_state: UI_State
-
-Screen_Bounds :: struct {
-    screen_bounds: AABB,
-    world_bounds: AABB,
-}
-
-Screen_Button :: struct {
-    screen_bounds: AABB,
-    world_bounds: AABB,
-    text: string,
-    text_scale: f32,
-    color: Vector4,
 }
 
 Enemy_Wave_Distribution :: struct {

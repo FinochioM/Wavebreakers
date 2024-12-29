@@ -69,8 +69,6 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
 	gs.state_kind = .MENU
     gs.wave_status = .WAITING
 
-    ui_state = init_ui_system()
-
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
 
@@ -81,7 +79,6 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
     gs.settings = Settings_State{
         tutorial_enabled = true,
     }
-
 
     init_tutorial(gs)
 
@@ -96,7 +93,7 @@ init_game_systems :: proc(gs: ^Game_State){
 //
 // :ENTITY
 
-EXPERIENCE_PER_LEVEL :: 100
+EXPERIENCE_PER_LEVEL :: 100 // Might add something here to not have a fixed amount.
 EXPERIENCE_PER_ENEMY :: 3
 POINTS_PER_ENEMY :: 1
 
@@ -226,12 +223,12 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
             e.enemy_type = 10
             e.value = 50
             setup_boss_10_animations(e)
-        }else if wave_num == 20{
+        }else if wave_num == 20 {
             e.enemy_type = 20
             e.value = 100
             draw_sprite(pos, .boss20, pivot = .bottom_center)
         }
-    }else {
+    }else{
         distribution := get_wave_distribution(wave_num)
         e.enemy_type = select_enemy_type(distribution)
 
@@ -333,7 +330,7 @@ start_new_game :: proc(gs: ^Game_State) {
 
     gs.wave_number = 0
     gs.enemies_to_spawn = 0
-    gs.currency_points = 10000
+    gs.currency_points = 0
     gs.player_level = 0
     gs.player_experience = 0
 
@@ -613,7 +610,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 game_res_w :: 512
 game_res_h :: 256
 
-render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
+render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	using linalg
 	player: Entity
 
@@ -625,13 +622,12 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
 
 	alpha := f32(accumulator) / f32(sims_per_second)
 
+
 	#partial switch gs.state_kind {
 	case .MENU:
-       ui_state.active_screen = "main_menu"
-       draw_ui(&ui_state)
+       draw_menu(gs)
     case .SETTINGS:
-        ui_state.active_screen = "settings"
-        draw_ui(&ui_state)
+        draw_settings_panel(gs)
 	case .PLAYING:
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
 		for en in gs.entities {
@@ -706,7 +702,6 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
 		    }
         }
 
-        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map2)
 		for &en in gs.entities {
 			#partial switch en.kind {
 			case .player:
@@ -721,13 +716,11 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
 				}
 			}
 		}
-
-        ui_state.active_screen = "pause"
-        draw_ui(&ui_state)
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map2)
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
+		draw_pause_menu(gs)
 	case .SHOP:
-        init_shop_menu(gs)
-        draw_tutorial_message(gs)
+		draw_shop_menu(gs)
 	case .GAME_OVER:
 	   draw_game_over_screen(gs)
     case .QUESTS:
@@ -739,6 +732,13 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
             }
         }
 
+        for &en in gs.entities{
+    	    if en.kind == .clouds{
+		      draw_clouds(&en)
+		    }
+        }
+
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map2)
         for &en in gs.entities {
             #partial switch en.kind {
             case .player:
@@ -783,9 +783,8 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
             color.w = text_alpha
             draw_text(text.pos, text.text, scale = 1.5, color = color)
         }
-
-        draw_quest_menu(gs)
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
+        draw_quest_menu(gs)
     case .SKILLS:
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
         for en in gs.entities {
@@ -794,6 +793,14 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
                 break
             }
         }
+
+        for &en in gs.entities{
+    	    if en.kind == .clouds{
+		      draw_clouds(&en)
+		    }
+        }
+
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map2)
 
         for &en in gs.entities {
             #partial switch en.kind {
@@ -838,8 +845,8 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
             draw_text(text.pos, text.text, scale = 0.4, color = color)
         }
 
-        draw_skills_menu(gs)
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
+        draw_skills_menu(gs)
 	}
 }
 
@@ -2036,260 +2043,4 @@ update_tutorial :: proc(gs: ^Game_State) {
                 gs.tutorial.shop_opened = true
             }
     }
-}
-
-//
-// :ui
-init_ui_system :: proc() -> UI_State {
-    state := UI_State{
-        screens = make(map[string]UI_Screen),
-        active_screen = "",
-        hot_config = init_ui_hot_reload(),
-    }
-
-    init_main_menu(&state)
-    init_settings_screen(&state)
-    init_pause_menu(&state)
-    return state
-}
-
-create_ui_element :: proc(
-    id: string,
-    kind: UI_Element_Kind,
-    layout: UI_Layout,
-    style: UI_Style,
-) -> ^UI_Element {
-    element := new(UI_Element)
-    element.id = strings.clone(id)
-    element.kind = kind
-    element.layout = layout
-    element.style = style
-    element.children = make([dynamic]^UI_Element)
-    element.is_visible = true
-    return element
-}
-
-add_child :: proc(parent: ^UI_Element, child: ^UI_Element){
-    child.parent = parent
-    append(&parent.children, child)
-}
-
-calculate_absolute_position :: proc(element: ^UI_Element) -> Vector2 {
-    if element == nil do return Vector2{}
-
-    parent_pos := Vector2{}
-    parent_size := Vector2{f32(window_w), f32(window_h)}
-
-    if element.parent != nil {
-        parent_pos = calculate_absolute_position(element.parent)
-        parent_size = element.parent.layout.size
-    }
-
-    anchor_offset := Vector2{
-        element.layout.anchor.x * parent_size.x,
-        element.layout.anchor.y * parent_size.y,
-    }
-
-    pivot_offset := Vector2{
-        element.layout.pivot.x * element.layout.size.x,
-        element.layout.pivot.y * element.layout.size.y,
-    }
-
-    final_pos := parent_pos + anchor_offset - pivot_offset + element.layout.position
-
-    return final_pos
-}
-
-calculate_screen_bounds :: proc(element: ^UI_Element) -> Screen_Bounds {
-    if element.kind != .Button do return Screen_Bounds{}
-
-    screen_x := (f32(window_w) - element.layout.size.x) * 0.5 + element.layout.position.x
-    screen_y := element.layout.position.y - element.layout.size.y * 0.5
-
-    if screen_x < -window_w || screen_x > window_w * 2 ||
-       screen_y < -window_h || screen_y > window_h * 2 {
-        fmt.println("Warning: Button coordinates outside expected range:",
-            screen_x, screen_y, element.id)
-    }
-
-    screen_bounds := AABB{
-        screen_x,
-        screen_y,
-        screen_x + element.layout.size.x,
-        screen_y + element.layout.size.y,
-    }
-
-    bl := screen_to_ndc(Vector2{screen_bounds.x, screen_bounds.y + element.layout.size.y})
-    tr := screen_to_ndc(Vector2{screen_bounds.z, screen_bounds.y})
-
-    world_bounds := AABB{
-        bl.x * game_res_w * 0.5,
-        bl.y * game_res_h * 0.5,
-        tr.x * game_res_w * 0.5,
-        tr.y * game_res_h * 0.5,
-    }
-
-    return Screen_Bounds{screen_bounds, world_bounds}
-}
-
-update_ui_element :: proc(element: ^UI_Element, input: ^Input_State) {
-    if !element.is_visible do return
-
-    HOVER_THRESHOLD :: 2.0
-
-    mouse_pos := window_to_screen(input.mouse_pos)
-
-    if element.kind == .Button {
-        element.screen_bounds = calculate_screen_bounds(element)
-        bounds := element.screen_bounds.screen_bounds
-
-        is_within_bounds := mouse_pos.x >= bounds.x - HOVER_THRESHOLD &&
-                           mouse_pos.x <= bounds.z + HOVER_THRESHOLD &&
-                           mouse_pos.y >= bounds.y - HOVER_THRESHOLD &&
-                           mouse_pos.y <= bounds.w + HOVER_THRESHOLD
-
-        prev_hovered := element.is_hovered
-        element.is_hovered = is_within_bounds
-
-        if !input.click_consumed {
-            if element.is_hovered && key_just_pressed(input^, .LEFT_MOUSE) {
-                element.is_pressed = true
-                if element.on_click != nil {
-                    fmt.printf("Button %s clicked!\n", element.id)
-                    element.on_click(element)
-                    input.click_consumed = true
-                    return
-                }
-            }
-        }
-    }
-
-    if key_just_released(input^, .LEFT_MOUSE) {
-        element.is_pressed = false
-    }
-
-    if !input.click_consumed {
-        for child in element.children {
-            update_ui_element(child, input)
-        }
-    }
-}
-
-draw_ui_element :: proc(element: ^UI_Element) {
-    if !element.is_visible do return
-
-    element_pos := get_element_position(element)
-
-    if element.kind == .Panel {
-        draw_rect_aabb(
-            element_pos,
-            element.layout.size,
-            col = element.style.background_color,
-        )
-    }
-
-    if element.kind == .Button {
-        color := element.style.background_color
-        mouse_world_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
-        bounds := AABB{
-            element_pos.x,
-            element_pos.y,
-            element_pos.x + element.layout.size.x,
-            element_pos.y + element.layout.size.y,
-        }
-
-        is_hovered := aabb_contains(bounds, mouse_world_pos)
-        if is_hovered {
-            color.xyz *= 1.2
-            if !app_state.input_state.click_consumed &&
-               key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
-                app_state.input_state.click_consumed = true
-                if element.on_click != nil {
-                    element.on_click(element)
-                }
-            }
-        }
-
-        draw_rect_aabb(
-            element_pos,
-            element.layout.size,
-            col = color,
-        )
-
-        if element.text != "" {
-            text_size := Vector2{
-                f32(len(element.text)) * 8 * element.style.text_scale,
-                16 * element.style.text_scale,
-            }
-
-            text_pos := Vector2{
-                element_pos.x + (element.layout.size.x - text_size.x) * 0.5,
-                element_pos.y + (element.layout.size.y - text_size.y) * 0.5,
-            }
-
-            draw_text(
-                text_pos,
-                element.text,
-                scale = auto_cast element.style.text_scale,
-                color = element.style.text_color,
-            )
-        }
-    }
-
-    if element.text != "" {
-        text_dims := get_text_dimensions(element.text, element.style.text_scale)
-
-        text_pos: Vector2
-        if element.kind == .Text {
-            // Center text based on actual text dimensions
-            text_pos = Vector2{
-                element_pos.x + (element.layout.size.x - text_dims.x) * 0.5,
-                element_pos.y + (element.layout.size.y - text_dims.y) * 0.5,
-            }
-        } else if element.kind == .Button {
-            text_pos = Vector2{
-                element_pos.x + (element.layout.size.x - text_dims.x) * 0.5,
-                element_pos.y + (element.layout.size.y - text_dims.y) * 0.5,
-            }
-        }
-
-        draw_text(
-            text_pos,
-            element.text,
-            scale = auto_cast element.style.text_scale,
-            color = element.style.text_color,
-        )
-    }
-
-    for child in element.children {
-        draw_ui_element(child)
-    }
-}
-
-draw_ui :: proc(state: ^UI_State) {
-    screen, ok := &state.screens[state.active_screen]
-    if !ok do return
-
-    for element in screen.elements {
-        draw_ui_element(element)
-    }
-}
-
-cleanup_ui :: proc(state: ^UI_State) {
-    for _, screen in &state.screens {
-        for element in screen.elements {
-            cleanup_element(element)
-        }
-        delete(screen.elements)
-    }
-    delete(state.screens)
-}
-
-cleanup_element :: proc(element: ^UI_Element) {
-    delete(element.id)
-    for child in element.children {
-        cleanup_element(child)
-    }
-    delete(element.children)
-    free(element)
 }

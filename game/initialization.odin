@@ -111,10 +111,7 @@ frame_init :: proc "c" () {
 
 	draw_frame.reset = {}
 	dt := seconds_since_init() - last_sim_time
-	render_gameplay(&app_state.game, &app_state.input_state)
-    if app_state.input_state.click_consumed {
-        fmt.println("Warning: Click still consumed at start of frame")
-    }
+	render_gameplay(&app_state.game, app_state.input_state)
 
 	reset_input_state_for_next_frame(&app_state.input_state)
 
