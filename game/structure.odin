@@ -505,3 +505,9 @@ Screen_Button :: struct {
     text_scale: f32,
     color: Vector4,
 }
+
+Enemy_Wave_Distribution :: struct {
+    enemy_types: [3]int,
+    probabilities: [3]f32,
+    count: int,
+}

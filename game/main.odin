@@ -96,7 +96,7 @@ init_game_systems :: proc(gs: ^Game_State){
 //
 // :ENTITY
 
-EXPERIENCE_PER_LEVEL :: 100 // Might add something here to not have a fixed amount.
+EXPERIENCE_PER_LEVEL :: 100
 EXPERIENCE_PER_ENEMY :: 3
 POINTS_PER_ENEMY :: 1
 
@@ -225,70 +225,26 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         if wave_num == 10 {
             e.enemy_type = 10
             e.value = 50
-            boss10_move_frames: []Image_Id = {
-                .boss10_run_1, .boss10_run_2, .boss10_run_3, .boss10_run_4,
-                .boss10_run_5, .boss10_run_6, .boss10_run_7, .boss10_run_8,
-            }
-            boss10_move_anim := create_animation(boss10_move_frames, 0.1, true, "boss10_move")
-
-            boss10_attack_frames: []Image_Id = {
-                .boss10_attack_1, .boss10_attack_2, .boss10_attack_3, .boss10_attack_4,
-                .boss10_attack_5, .boss10_attack_6, .boss10_attack_7, .boss10_attack_8,
-            }
-            boss10_attack_anim := create_animation(boss10_attack_frames, 0.1, false, "boss10_attack1")
-
-            boss10_attack2_frames: []Image_Id = {
-                .boss10_attack2_1, .boss10_attack2_2, .boss10_attack2_3, .boss10_attack2_4,
-                .boss10_attack2_5, .boss10_attack2_6, .boss10_attack2_7, .boss10_attack2_8,
-            }
-            boss10_attack2_anim := create_animation(boss10_attack2_frames, 0.1, false, "boss10_attack2")
-
-            boss10_idle_frames: []Image_Id = {
-                .boss10_rest_1, .boss10_rest_2, .boss10_rest_3,
-            }
-            boss10_idle_anim := create_animation(boss10_idle_frames, 0.1, false, "boss10_idle")
-
-            add_animation(&e.animations, boss10_move_anim)
-            add_animation(&e.animations, boss10_attack_anim)
-            add_animation(&e.animations, boss10_attack2_anim)
-            add_animation(&e.animations, boss10_idle_anim)
-        }else if wave_num == 20 {
+            setup_boss_10_animations(e)
+        }else if wave_num == 20{
             e.enemy_type = 20
             e.value = 100
             draw_sprite(pos, .boss20, pivot = .bottom_center)
         }
-    }else{
-        if wave_num <= 10{
-            e.enemy_type = 1
-            enemy_move_frames: []Image_Id = {
-                .enemy1_10_1_move,.enemy1_10_2_move,.enemy1_10_3_move,.enemy1_10_4_move,
-                .enemy1_10_5_move,.enemy1_10_6_move,.enemy1_10_7_move,.enemy1_10_8_move
-            }
-            enemy_move_anim := create_animation(enemy_move_frames, 0.1, true, "enemy1_10_move")
+    }else {
+        distribution := get_wave_distribution(wave_num)
+        e.enemy_type = select_enemy_type(distribution)
 
-            enemy_attack_frames: []Image_Id = {
-                .enemy1_10_1_attack,.enemy1_10_2_attack,.enemy1_10_3_attack,.enemy1_10_4_attack,
-                .enemy1_10_5_attack,.enemy1_10_6_attack,.enemy1_10_7_attack,.enemy1_10_8_attack
-            }
-            enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, false, "enemy1_10_attack")
-
-        	add_animation(&e.animations, enemy_move_anim)
-        	add_animation(&e.animations, enemy_attack_anim)
-        }else if wave_num <= 20{
-            e.enemy_type = 2
-            enemy2_move_frames: []Image_Id = {
-                .enemy11_19_1_move, .enemy11_19_2_move, .enemy11_19_3_move, .enemy11_19_4_move,
-                .enemy11_19_5_move, .enemy11_19_6_move, .enemy11_19_7_move, .enemy11_19_8_move,
-            }
-            enemy2_move_anim := create_animation(enemy2_move_frames, 0.14, true, "enemy11_19_move")
-
-            add_animation(&e.animations, enemy2_move_anim)
+        if e.enemy_type == 1 {
+            setup_enemy_type_1_animations(e)
+        }else if e.enemy_type == 2{
+            setup_enemy_type_2_animations(e)
         }
 
         e.value = e.enemy_type * 2
     }
 
-    base_health := 15 + (e.enemy_type - 1) * 10
+    base_health := 12 + (e.enemy_type - 1) * 10
     base_damage := 5 + (e.enemy_type - 1) * 3
     base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
 
@@ -361,7 +317,7 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 //
 // :sim
 
-FOV_RANGE :: 300.0 // Range in which the player can detect enemies 200
+FOV_RANGE :: 220.0 // Range in which the player can detect enemies 200
 
 start_new_game :: proc(gs: ^Game_State) {
     for &en in gs.entities {
@@ -377,7 +333,7 @@ start_new_game :: proc(gs: ^Game_State) {
 
     gs.wave_number = 0
     gs.enemies_to_spawn = 0
-    gs.currency_points = 0
+    gs.currency_points = 10000
     gs.player_level = 0
     gs.player_experience = 0
 
@@ -459,6 +415,9 @@ get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
     }else if enemy.enemy_type == 10 {
         base_width = 45.0
         base_height = 70.0
+    }else if enemy.enemy_type == 2 {
+        base_width = 25.0
+        base_height = 20.0
     }
 
     return AABB {
@@ -467,6 +426,50 @@ get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
         enemy.pos.x + base_width / 2,
         enemy.pos.y + base_height
     }
+}
+
+get_wave_distribution :: proc(wave_number: int) -> Enemy_Wave_Distribution {
+    distribution: Enemy_Wave_Distribution
+
+    if wave_number <= 9{
+        distribution.enemy_types[0] = 1
+        distribution.probabilities[0] = 1.0
+        distribution.count = 1
+    }else if wave_number <= 19 {
+        distribution.enemy_types[0] = 1
+        distribution.enemy_types[1] = 2
+        distribution.probabilities[0] = 0.4
+        distribution.probabilities[1] = 0.6
+        distribution.count = 2
+    } else if wave_number <= 29 {
+        distribution.enemy_types[0] = 1
+        distribution.enemy_types[1] = 2
+        distribution.enemy_types[2] = 3
+        distribution.probabilities[0] = 0.2
+        distribution.probabilities[1] = 0.3
+        distribution.probabilities[2] = 0.5
+        distribution.count = 3
+    }
+
+    return distribution
+}
+
+select_enemy_type :: proc(distribution: Enemy_Wave_Distribution) -> int {
+    if distribution.count == 1{
+        return distribution.enemy_types[0]
+    }
+
+    roll := rand.float32()
+    accumulated_prob: f32 = 0
+
+    for i := 0; i < distribution.count; i += 1{
+        accumulated_prob += distribution.probabilities[i]
+        if roll <= accumulated_prob{
+            return distribution.enemy_types[i]
+        }
+    }
+
+    return distribution.enemy_types[0]
 }
 
 update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
@@ -577,16 +580,6 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 						  entity_destroy(gs, &en)
 						  break
 						}
-
-                    /*
-						dist := linalg.length(target.pos - en.pos)
-						collision_radius := target.enemy_type == 10 ? 40.0 : 25.0 // TODO TODO TODO
-						if auto_cast dist <= collision_radius {
-							when_projectile_hits_enemy(gs, &en, &target)
-							entity_destroy(gs, &en)
-							break
-						}
-				    	*/
 					}
 
 					if .allocated in en.flags {
@@ -707,7 +700,13 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
 	case .PAUSED:
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map1)
+        for &en in gs.entities{
+    	    if en.kind == .clouds{
+		      draw_clouds(&en)
+		    }
+        }
 
+        draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map2)
 		for &en in gs.entities {
 			#partial switch en.kind {
 			case .player:
@@ -723,10 +722,12 @@ render_gameplay :: proc(gs: ^Game_State, input_state: ^Input_State) {
 			}
 		}
 
-		draw_pause_menu(gs)
+        ui_state.active_screen = "pause"
+        draw_ui(&ui_state)
         draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map0)
 	case .SHOP:
-		draw_shop_menu(gs)
+        init_shop_menu(gs)
+        draw_tutorial_message(gs)
 	case .GAME_OVER:
 	   draw_game_over_screen(gs)
     case .QUESTS:
@@ -2048,7 +2049,7 @@ init_ui_system :: proc() -> UI_State {
 
     init_main_menu(&state)
     init_settings_screen(&state)
-
+    init_pause_menu(&state)
     return state
 }
 
@@ -2177,74 +2178,55 @@ update_ui_element :: proc(element: ^UI_Element, input: ^Input_State) {
 draw_ui_element :: proc(element: ^UI_Element) {
     if !element.is_visible do return
 
+    element_pos := get_element_position(element)
+
+    if element.kind == .Panel {
+        draw_rect_aabb(
+            element_pos,
+            element.layout.size,
+            col = element.style.background_color,
+        )
+    }
+
     if element.kind == .Button {
-        element.screen_bounds = calculate_screen_bounds(element)
-
         color := element.style.background_color
-        mouse_pos := window_to_screen(app_state.input_state.mouse_pos)
-        is_hovered := aabb_contains(element.screen_bounds.screen_bounds, mouse_pos)
+        mouse_world_pos := screen_to_world_pos(app_state.input_state.mouse_pos)
+        bounds := AABB{
+            element_pos.x,
+            element_pos.y,
+            element_pos.x + element.layout.size.x,
+            element_pos.y + element.layout.size.y,
+        }
 
+        is_hovered := aabb_contains(bounds, mouse_world_pos)
         if is_hovered {
             color.xyz *= 1.2
-
             if !app_state.input_state.click_consumed &&
                key_just_pressed(app_state.input_state, .LEFT_MOUSE) {
                 app_state.input_state.click_consumed = true
                 if element.on_click != nil {
                     element.on_click(element)
-                    play_sound("button_click")
                 }
             }
         }
 
         draw_rect_aabb(
-            v2{element.screen_bounds.world_bounds.x, element.screen_bounds.world_bounds.y},
-            v2{
-                element.screen_bounds.world_bounds.z - element.screen_bounds.world_bounds.x,
-                element.screen_bounds.world_bounds.w - element.screen_bounds.world_bounds.y,
-            },
+            element_pos,
+            element.layout.size,
             col = color,
         )
 
         if element.text != "" {
-            text_width := f32(len(element.text)) * 8 * element.style.text_scale
-            text_height := 16 * element.style.text_scale
-
-            text_pos := v2{
-                element.screen_bounds.world_bounds.x +
-                (element.screen_bounds.world_bounds.z - element.screen_bounds.world_bounds.x - text_width) * 0.5,
-                element.screen_bounds.world_bounds.y +
-                (element.screen_bounds.world_bounds.w - element.screen_bounds.world_bounds.y - text_height) * 0.5,
+            text_size := Vector2{
+                f32(len(element.text)) * 8 * element.style.text_scale,
+                16 * element.style.text_scale,
             }
 
-            draw_text(text_pos, element.text, scale = auto_cast element.style.text_scale, color = element.style.text_color)
-        }
-    } else {
-        abs_pos := calculate_absolute_position(element)
-        screen_pos := screen_to_ndc(abs_pos)
-        world_pos := Vector2{
-            screen_pos.x * game_res_w * 0.5,
-            screen_pos.y * game_res_h * 0.5,
-        }
+            text_pos := Vector2{
+                element_pos.x + (element.layout.size.x - text_size.x) * 0.5,
+                element_pos.y + (element.layout.size.y - text_size.y) * 0.5,
+            }
 
-        if element.kind == .Panel {
-            draw_rect_aabb(
-                world_pos,
-                element.layout.size,
-                col = element.style.background_color,
-            )
-        }
-
-        if element.kind == .Image && element.image_id != .nil {
-            draw_sprite(
-                world_pos,
-                element.image_id,
-                pivot = .top_left,
-            )
-        }
-
-        if element.text != "" && element.kind != .Button {
-            text_pos := world_pos + element.style.padding
             draw_text(
                 text_pos,
                 element.text,
@@ -2252,6 +2234,31 @@ draw_ui_element :: proc(element: ^UI_Element) {
                 color = element.style.text_color,
             )
         }
+    }
+
+    if element.text != "" {
+        text_dims := get_text_dimensions(element.text, element.style.text_scale)
+
+        text_pos: Vector2
+        if element.kind == .Text {
+            // Center text based on actual text dimensions
+            text_pos = Vector2{
+                element_pos.x + (element.layout.size.x - text_dims.x) * 0.5,
+                element_pos.y + (element.layout.size.y - text_dims.y) * 0.5,
+            }
+        } else if element.kind == .Button {
+            text_pos = Vector2{
+                element_pos.x + (element.layout.size.x - text_dims.x) * 0.5,
+                element_pos.y + (element.layout.size.y - text_dims.y) * 0.5,
+            }
+        }
+
+        draw_text(
+            text_pos,
+            element.text,
+            scale = auto_cast element.style.text_scale,
+            color = element.style.text_color,
+        )
     }
 
     for child in element.children {

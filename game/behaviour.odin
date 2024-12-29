@@ -771,11 +771,16 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
                 auto_cast spawn_position + SPAWN_MARGIN * 0.2,
             )
 
+
             if is_boss_wave {
                 setup_enemy(enemy, v2{spawn_x, -130}, gs.current_wave_difficulty)
             }else{
                 setup_enemy(enemy, v2{spawn_x, -115}, gs.current_wave_difficulty)
+                if enemy.enemy_type == 2{
+                    enemy.pos.y = -115
+                }
             }
+
             gs.active_enemies += 1
         }
 

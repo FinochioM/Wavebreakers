@@ -111,3 +111,66 @@ debug_draw_fov_range :: proc(center: Vector2, radius: f32) {
 		)
 	}
 }
+
+get_parent_rect :: proc(element: ^UI_Element) -> (rect: AABB) {
+    if element.parent == nil {
+        return AABB{
+            -f32(window_w) * 0.5,
+            -f32(window_h) * 0.5,
+            f32(window_w) * 0.5,
+            f32(window_h) * 0.5,
+        }
+    }
+
+    parent_pos := get_element_position(element.parent)
+    return AABB{
+        parent_pos.x,
+        parent_pos.y,
+        parent_pos.x + element.parent.layout.size.x,
+        parent_pos.y + element.parent.layout.size.y,
+    }
+}
+
+get_element_position :: proc(element: ^UI_Element) -> Vector2 {
+    if element == nil do return Vector2{}
+
+    parent_rect := get_parent_rect(element)
+    parent_size := Vector2{
+        parent_rect.z - parent_rect.x,
+        parent_rect.w - parent_rect.y,
+    }
+
+    anchor_pos := Vector2{
+        parent_rect.x + parent_size.x * element.layout.anchor.x,
+        parent_rect.y + parent_size.y * element.layout.anchor.y,
+    }
+
+    pivot_offset := Vector2{
+        element.layout.size.x * element.layout.pivot.x,
+        element.layout.size.y * element.layout.pivot.y,
+    }
+
+    final_pos := Vector2{
+        anchor_pos.x + element.layout.position.x - pivot_offset.x,
+        anchor_pos.y + element.layout.position.y - pivot_offset.y,
+    }
+
+    return final_pos
+}
+
+get_text_dimensions :: proc(text: string, scale: f32) -> Vector2 {
+    text_width := f32(len(text)) * 8 * scale  // Base character width
+    text_height := 16 * scale                 // Base character height
+
+    // Initialize actual_width as f32
+    actual_width: f32 = 0
+    for ch in text {
+        if ch == ' ' {
+            actual_width += 4 * scale  // Now 4 will be converted to f32
+        } else {
+            actual_width += 8 * scale  // Now 8 will be converted to f32
+        }
+    }
+
+    return Vector2{actual_width, text_height}
+}

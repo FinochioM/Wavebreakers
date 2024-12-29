@@ -45,6 +45,8 @@ Image_Id :: enum {
 	player_projectile,
 
 	// ENEMIES
+
+	// Enemy 1
 	enemy1_10_1_move,
 	enemy1_10_2_move,
 	enemy1_10_3_move,
@@ -65,14 +67,24 @@ Image_Id :: enum {
 	enemy1_10_hit2,
 	enemy1_10_hit3,
 	enemy1_10_hit4,
-	enemy11_19_1_move,
-	enemy11_19_2_move,
-	enemy11_19_3_move,
-	enemy11_19_4_move,
-	enemy11_19_5_move,
-	enemy11_19_6_move,
-	enemy11_19_7_move,
-	enemy11_19_8_move,
+
+	// Enemy 2
+    enemy11_19_move1,
+    enemy11_19_move2,
+    enemy11_19_move3,
+    enemy11_19_move4,
+    enemy11_19_move5,
+    enemy11_19_move6,
+    enemy11_19_move7,
+    enemy11_19_move8,
+    enemy11_19_attack1,
+    enemy11_19_attack2,
+    enemy11_19_attack3,
+    enemy11_19_attack4,
+    enemy11_19_attack5,
+    enemy11_19_attack6,
+    enemy11_19_attack7,
+    enemy11_19_attack8,
 
 
 	// BOSSES
