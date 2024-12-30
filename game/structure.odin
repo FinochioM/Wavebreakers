@@ -95,6 +95,7 @@ Entity_Kind :: enum {
 	enemy,
 	player_projectile,
 	clouds,
+	menu,
 }
 
 Entity :: struct {
@@ -372,6 +373,8 @@ Screen_Button :: struct {
     text: string,
     text_scale: f32,
     color: Vector4,
+    background_sprite: Maybe(Image_Id),
+    sprite_scale: Vector2,
 }
 
 Boss_Attack_State :: enum {

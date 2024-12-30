@@ -18,6 +18,7 @@ Image_Id :: enum {
 	background_map0,
 	background_map1,
 	background_map2,
+	background_map3,
 
 	// PARALAX
 	cloud1,
@@ -117,6 +118,21 @@ Image_Id :: enum {
 	boss10_rest_3,
 
 	boss20,
+
+	// UI
+    btn,
+    test1,
+    test2,
+    test3,
+    test4,
+    test5,
+    test6,
+    test7,
+    test8,
+    test9,
+    test10,
+    test11,
+    test12,
 }
 
 Image :: struct {

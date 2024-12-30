@@ -30,13 +30,49 @@ SETTINGS_BUTTON_HEIGHT :: 20.0
 SETTINGS_PANEL_WIDTH :: 200.0
 SETTINGS_PANEL_HEIGHT :: 150.0
 
+create_menu_animation :: proc(gs: ^Game_State, e: ^Entity){
+    e.kind = .menu
+    e.animations = create_animation_collection()
+
+    menu_frames: []Image_Id = {
+        .test1, .test2, .test3, .test4, .test5, .test6,
+        .test7, .test8, .test9, .test10, .test11, .test12,
+    }
+
+    menu_animation := create_animation(menu_frames, 0.18, false, "menu_anim")
+    menu_animation.state = .Paused
+    add_animation(&e.animations, menu_animation)
+}
+
 draw_menu :: proc(gs: ^Game_State) {
-	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "Play")
+    menu := find_menu(gs)
+    if menu == nil {
+        menu = entity_create(gs)
+        if menu != nil {
+            create_menu_animation(gs, menu)
+        }
+    }
+
+    draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map3)
+	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "PLAY")
 	draw_settings_button(gs)
 
     if draw_screen_button(play_button){
-        start_new_game(gs)
-        gs.state_kind = .PLAYING
+	   play_animation_by_name(&menu.animations, "menu_anim")
+	}
+
+
+    if menu != nil {
+        update_current_animation(&menu.animations, sims_per_second)
+        draw_current_animation(&menu.animations, v2{0,0}, pivot=.center_center)
+
+        if anim, ok := &menu.animations.animations["menu_anim"]; ok{
+            if anim.state == .Stopped {
+                entity_destroy(gs, menu)
+                start_new_game(gs)
+                gs.state_kind = .PLAYING
+            }
+        }
     }
 }
 
@@ -784,6 +820,8 @@ make_screen_button :: proc(
     text: string,
     color := v4{0.2, 0.3, 0.8, 1.0},
     text_scale := f32(0.5),
+    background_sprite: Maybe(Image_Id) = nil,
+    sprite_scale := Vector2{1,1},
 ) -> Screen_Button {
     screen_bounds := AABB{
         screen_x,
@@ -808,6 +846,8 @@ make_screen_button :: proc(
         text = text,
         text_scale = text_scale,
         color = color,
+        background_sprite = background_sprite,
+        sprite_scale = sprite_scale,
     }
 }
 
@@ -820,16 +860,28 @@ draw_screen_button :: proc(button: Screen_Button) -> bool {
         play_sound("button_click")
     }
 
-    color := button.color
-    if is_hovered {
-        color.xyz *= 1.2
-    }
+    if button.background_sprite != nil {
+        pos := v2{button.world_bounds.x, button.world_bounds.y}
+        size := v2{
+            button.world_bounds.z - button.world_bounds.x,
+            button.world_bounds.w - button.world_bounds.y,
+        }
 
-    draw_rect_aabb(
-        v2{button.world_bounds.x, button.world_bounds.y},
-        v2{button.world_bounds.z - button.world_bounds.x, button.world_bounds.w - button.world_bounds.y},
-        col = color,
-    )
+        xform := Matrix4(1)
+        xform *= xform_scale(button.sprite_scale)
+        draw_sprite(pos, button.background_sprite.?, .bottom_left, xform)
+    }else{
+        color := button.color
+        if is_hovered {
+            color.xyz *= 1.2
+        }
+
+        draw_rect_aabb(
+            v2{button.world_bounds.x, button.world_bounds.y},
+            v2{button.world_bounds.z - button.world_bounds.x, button.world_bounds.w - button.world_bounds.y},
+            col = color,
+        )
+    }
 
     char_width := 8.0
     char_height := 1.0
@@ -859,6 +911,8 @@ make_centered_screen_button :: proc(
     color := v4{0.2, 0.3, 0.8, 1.0},
     x_offset := f32(0),
     text_scale := f32(0.5),
+    background_sprite: Maybe(Image_Id) = nil,
+    sprite_scale := Vector2{1, 1},
 ) -> Screen_Button {
     screen_x := (f32(window_w) - width) * 0.5 + x_offset
     return make_screen_button(
@@ -869,6 +923,8 @@ make_centered_screen_button :: proc(
         text,
         color,
         text_scale,
+        background_sprite,
+        sprite_scale,
     )
 }
 

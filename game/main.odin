@@ -632,7 +632,6 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 
 	alpha := f32(accumulator) / f32(sims_per_second)
 
-
 	#partial switch gs.state_kind {
 	case .MENU:
        draw_menu(gs)
@@ -1019,6 +1018,16 @@ almost_equals :: proc(a: f32, b: f32, epsilon: f32 = 0.001) -> bool {
 find_player :: proc(gs: ^Game_State) -> ^Entity {
 	for &en in gs.entities {
 		if en.kind == .player {
+			return &en
+		}
+	}
+
+	return nil
+}
+
+find_menu :: proc(gs: ^Game_State) -> ^Entity {
+	for &en in gs.entities {
+		if en.kind == .menu {
 			return &en
 		}
 	}
@@ -1713,7 +1722,7 @@ load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id,
 
 init_ui_hot_reload :: proc() -> UI_Hot_Reload {
     hr := UI_Hot_Reload{
-        config_path = "A:/Desarrollos/1WeekGame/game/config/ui_config.json",
+        config_path = "./res_workbench/config/ui_config.json",
         config = UI_Config{
             // General menu
             menu_button_width = 40.0,
