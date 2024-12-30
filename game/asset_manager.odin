@@ -133,6 +133,10 @@ Image_Id :: enum {
     test10,
     test11,
     test12,
+
+    // Splash
+    maki_logo,
+    fmod_logo,
 }
 
 Image :: struct {

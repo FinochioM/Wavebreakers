@@ -231,9 +231,9 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
         wave_num := gs.wave_number
         if en.attack_timer <= 0 {
             state.damage_dealt = false
-            if wave_num <= 9 {
+            if wave_num <= 9 || en.enemy_type == 1{
                 reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
-            } else if wave_num <= 19 {
+            } else if wave_num <= 19 || en.enemy_type == 2{
                 reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
             }
             en.attack_timer = ENEMY_ATTACK_COOLDOWN
@@ -778,7 +778,7 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
             }else{
                 setup_enemy(enemy, v2{spawn_x, -115}, gs.current_wave_difficulty)
                 if enemy.enemy_type == 2{
-                    enemy.pos.y = -115
+                    enemy.pos.y = -122
                 }
             }
 

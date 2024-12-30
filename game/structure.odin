@@ -41,6 +41,7 @@ Game_State_Kind :: enum {
 	SKILLS,
 	QUESTS,
 	SETTINGS,
+	SPLASH,
 }
 
 Game_State :: struct {
@@ -71,6 +72,7 @@ Game_State :: struct {
     cloud_spawn_timer: f32,
     settings: Settings_State,
     tutorial: Tutorial_State,
+    splash_state: Splash_State,
 }
 
 Enemy_Target :: struct {
@@ -449,4 +451,11 @@ Enemy_Wave_Distribution :: struct {
     enemy_types: [3]int,
     probabilities: [3]f32,
     count: int,
+}
+
+Splash_State :: struct {
+    current_screen: int,
+    timer: f32,
+    fade_in: bool,
+    alpha: f32,
 }

@@ -66,8 +66,15 @@ cleanup :: proc "c" () {
 // :GAME
 
 first_time_init_game_state :: proc(gs: ^Game_State) {
-	gs.state_kind = .MENU
-    gs.wave_status = .WAITING
+    init_splash_state(gs)
+
+    when !ODIN_DEBUG {
+    	gs.state_kind = .SPLASH
+        gs.wave_status = .WAITING
+    }else{
+    	gs.state_kind = .MENU
+        gs.wave_status = .WAITING
+    }
 
 	gs.floating_texts = make([dynamic] Floating_Text)
     gs.floating_texts.allocator = context.allocator
@@ -198,8 +205,8 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
-	   e.health = 10000
-	   e.max_health = 10000
+	   e.health = 100
+	   e.max_health = 100
 	   e.damage = 10
     }
 	e.attack_speed = 1.0
@@ -235,7 +242,6 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         if e.enemy_type == 1 {
             setup_enemy_type_1_animations(e)
         }else if e.enemy_type == 2{
-            fmt.println("Setting up enemy type 2")
             setup_enemy_type_2_animations(e)
         }
 
@@ -483,6 +489,8 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 	defer gs.tick_index += 1
 
 	#partial switch gs.state_kind {
+	case .SPLASH:
+	   update_splash_screen(gs, delta_t)
 	case .PLAYING, .SKILLS, .QUESTS:
 	    update_tutorial(gs)
 	    update_clouds(gs, delta_t)
@@ -633,8 +641,15 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	alpha := f32(accumulator) / f32(sims_per_second)
 
 	#partial switch gs.state_kind {
+	case .SPLASH:
+	   draw_splash_screen(gs)
 	case .MENU:
-       draw_menu(gs)
+	   when !ODIN_DEBUG{
+        draw_menu(gs)
+	   }else{
+        start_new_game(gs)
+        gs.state_kind = .PLAYING
+	   }
     case .SETTINGS:
         draw_settings_panel(gs)
 	case .PLAYING:
@@ -2062,4 +2077,59 @@ update_tutorial :: proc(gs: ^Game_State) {
                 gs.tutorial.shop_opened = true
             }
     }
+}
+
+//
+// :splash
+init_splash_state :: proc(gs: ^Game_State){
+    gs.splash_state = Splash_State{
+        current_screen = 0,
+        timer = 0,
+        fade_in = true,
+        alpha = 0,
+    }
+
+    gs.state_kind = .SPLASH
+}
+
+update_splash_screen :: proc(gs: ^Game_State, delta_t: f64) {
+    FADE_SPEED :: 2.0
+    DISPLAY_TIME :: 2.0
+
+    if gs.splash_state.fade_in {
+        gs.splash_state.alpha += FADE_SPEED * f32(delta_t)
+        if gs.splash_state.alpha >= 1.0 {
+            gs.splash_state.alpha = 1.0
+            gs.splash_state.fade_in = false
+            gs.splash_state.timer = DISPLAY_TIME
+        }
+    } else {
+        gs.splash_state.timer -= f32(delta_t)
+        if gs.splash_state.timer <= 0 {
+            gs.splash_state.alpha -= FADE_SPEED * f32(delta_t)
+            if gs.splash_state.alpha <= 0 {
+                gs.splash_state.alpha = 0
+                gs.splash_state.current_screen += 1
+                if gs.splash_state.current_screen >= 2 {
+                    gs.state_kind = .MENU
+                } else {
+                    gs.splash_state.fade_in = true
+                }
+            }
+        }
+    }
+}
+
+draw_splash_screen :: proc(gs: ^Game_State) {
+    draw_rect_aabb(v2{game_res_w * -0.5, game_res_h * -0.5},
+                  v2{game_res_w, game_res_h},
+                  col = v4{0, 0, 0, 1})
+
+    splash_image := gs.splash_state.current_screen == 0 ? Image_Id.fmod_logo : Image_Id.maki_logo
+
+    color := v4{1, 1, 1, gs.splash_state.alpha}
+    draw_rect_aabb(v2{game_res_w * -0.5, game_res_h * -0.5},
+                  v2{game_res_w, game_res_h},
+                  col = color,
+                  img_id = splash_image)
 }

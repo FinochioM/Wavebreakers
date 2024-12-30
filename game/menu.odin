@@ -34,14 +34,16 @@ create_menu_animation :: proc(gs: ^Game_State, e: ^Entity){
     e.kind = .menu
     e.animations = create_animation_collection()
 
-    menu_frames: []Image_Id = {
-        .test1, .test2, .test3, .test4, .test5, .test6,
-        .test7, .test8, .test9, .test10, .test11, .test12,
-    }
+    when !ODIN_DEBUG{
+        menu_frames: []Image_Id = {
+            .test1, .test2, .test3, .test4, .test5, .test6,
+            .test7, .test8, .test9, .test10, .test11, .test12,
+        }
 
-    menu_animation := create_animation(menu_frames, 0.18, false, "menu_anim")
-    menu_animation.state = .Paused
-    add_animation(&e.animations, menu_animation)
+        menu_animation := create_animation(menu_frames, 0.28, false, "menu_anim")
+        menu_animation.state = .Paused
+        add_animation(&e.animations, menu_animation)
+    }
 }
 
 draw_menu :: proc(gs: ^Game_State) {
@@ -57,20 +59,28 @@ draw_menu :: proc(gs: ^Game_State) {
 	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "PLAY")
 	draw_settings_button(gs)
 
-    if draw_screen_button(play_button){
-	   play_animation_by_name(&menu.animations, "menu_anim")
-	}
+    if draw_screen_button(play_button) {
+        when !ODIN_DEBUG {
+            play_animation_by_name(&menu.animations, "menu_anim")
+        } else {
+            entity_destroy(gs, menu)
+            start_new_game(gs)
+            gs.state_kind = .PLAYING
+        }
+    }
 
 
-    if menu != nil {
-        update_current_animation(&menu.animations, sims_per_second)
-        draw_current_animation(&menu.animations, v2{0,0}, pivot=.center_center)
+    when !ODIN_DEBUG {
+        if menu != nil {
+            update_current_animation(&menu.animations, sims_per_second)
+            draw_current_animation(&menu.animations, v2{0,0}, pivot=.center_center)
 
-        if anim, ok := &menu.animations.animations["menu_anim"]; ok{
-            if anim.state == .Stopped {
-                entity_destroy(gs, menu)
-                start_new_game(gs)
-                gs.state_kind = .PLAYING
+            if anim, ok := &menu.animations.animations["menu_anim"]; ok {
+                if anim.state == .Stopped {
+                    entity_destroy(gs, menu)
+                    start_new_game(gs)
+                    gs.state_kind = .PLAYING
+                }
             }
         }
     }
