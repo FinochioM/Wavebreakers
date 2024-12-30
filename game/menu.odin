@@ -56,7 +56,9 @@ draw_menu :: proc(gs: ^Game_State) {
     }
 
     draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map3)
+
 	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "PLAY")
+
 	draw_settings_button(gs)
 
     if draw_screen_button(play_button) {

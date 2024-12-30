@@ -2129,7 +2129,7 @@ draw_splash_screen :: proc(gs: ^Game_State) {
 
     color := v4{1, 1, 1, gs.splash_state.alpha}
     draw_rect_aabb(v2{game_res_w * -0.5, game_res_h * -0.5},
-                  v2{game_res_w, game_res_h},
-                  col = color,
-                  img_id = splash_image)
+          v2{game_res_w, game_res_h},
+          col = color,
+          img_id = splash_image)
 }
