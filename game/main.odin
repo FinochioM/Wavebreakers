@@ -329,7 +329,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 10
+    gs.wave_number = 0
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -372,6 +372,15 @@ handle_input :: proc(gs: ^Game_State) {
                     "DEBUG: Added 5 levels!",
                     v4{1, 1, 0, 1},
                 )
+            }
+		}
+
+		if key_just_pressed(app_state.input_state, .P){
+            player := find_player(gs)
+            if player != nil {
+                for i in 0..<5 {
+                    gs.currency_points += 100
+                }
             }
 		}
 	case .PAUSED:

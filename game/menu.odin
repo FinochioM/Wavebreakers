@@ -831,12 +831,19 @@ draw_screen_button :: proc(button: Screen_Button) -> bool {
         col = color,
     )
 
-    text_width := f32(len(button.text)) * 8 * button.text_scale
-    text_height := 16 * button.text_scale
+    char_width := 8.0
+    char_height := 1.0
+    padding := 1.0
+
+    text_width := f32(len(button.text)) * f32(char_width) * button.text_scale
+    text_height := f32(char_height) * button.text_scale
+
+    button_width := button.world_bounds.z - button.world_bounds.x
+    button_height := f32(char_height) * button.text_scale
 
     text_pos := v2{
-        button.world_bounds.x + (button.world_bounds.z - button.world_bounds.x - text_width) * 0.5,
-        button.world_bounds.y + (button.world_bounds.w - button.world_bounds.y - text_height) * 0.5,
+        button.world_bounds.x + (button_width - text_width) * 0.5,
+        button.world_bounds.y + (button_height - text_height) * 0.5 + f32(padding),
     }
 
     draw_text(text_pos, button.text, scale = auto_cast button.text_scale)
