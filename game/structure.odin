@@ -458,6 +458,7 @@ Screen_Button :: struct {
 Boss_Attack_State :: enum {
     Normal_Attack_1,
     Strong_Attack,
+    Fire_Attack,
     Rest
 }
 

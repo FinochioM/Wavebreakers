@@ -117,7 +117,22 @@ Image_Id :: enum {
 	boss10_rest_2,
 	boss10_rest_3,
 
-	boss20,
+	boss20_move1,
+	boss20_move2,
+	boss20_move3,
+	boss20_move4,
+	boss20_move5,
+	boss20_move6,
+	boss20_move7,
+	boss20_move8,
+    boss20_attack1,
+    boss20_attack2,
+    boss20_attack3,
+    boss20_attack4,
+    boss20_attack5,
+    boss20_attack6,
+    boss20_attack7,
+    boss20_attack8,
 
 	// UI
     btn,
@@ -294,7 +309,7 @@ pack_images_into_atlas :: proc() {
 
     // Write debug atlas
     stbi.write_png(
-        "atlases/atlas.png",
+        "./atlases/atlas.png",
         auto_cast atlas.w,
         auto_cast atlas.h,
         4,

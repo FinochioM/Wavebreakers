@@ -209,8 +209,8 @@ setup_player :: proc(e: ^Entity) {
         e.max_health = e.max_health / 2
         e.damage = current_damage * 2
     }else{
-	   e.health = 100
-	   e.max_health = 100
+	   e.health = 10000
+	   e.max_health = 10000
 	   e.damage = 10
     }
 	e.attack_speed = 1.0
@@ -237,7 +237,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         }else if wave_num == 20 {
             e.enemy_type = 20
             e.value = 100
-            draw_sprite(pos, .boss20, pivot = .bottom_center)
+            setup_boss_20_animations(e)
         }
     }else{
         distribution := get_wave_distribution(wave_num)
@@ -264,9 +264,13 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
     speed_mult := 1.0 + (config.speed_scale * wave_num_32)
 
     if is_boss_wave {
+        if e.enemy_type == 10{
+            speed_mult *= 0.3
+        }else if e.enemy_type == 20{
+            speed_mult *= 0.4
+        }
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
-        speed_mult *= 0.3
     }
 
     e.pos = pos
@@ -339,7 +343,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 0
+    gs.wave_number = 19
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -435,6 +439,9 @@ get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
     }else if enemy.enemy_type == 2 {
         base_width = 25.0
         base_height = 20.0
+    }else if enemy.enemy_type == 20{
+        base_width = 45.0
+        base_height = 70.0
     }
 
     return AABB {

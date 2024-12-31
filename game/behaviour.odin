@@ -37,11 +37,12 @@ spawn_floating_text :: proc(gs: ^Game_State, pos: Vector2, text: string, color :
 boss_states: map[Entity_Handle]Boss_State
 enemy_state: map[Entity_Handle]Enemy_State
 
+FIRE_REST_DURATION :: 2.0
 REST_DURATION :: 1.0
 STRONG_ATTACK_MULTIPLIER :: 1.1
 CURRENT_TIMER_ATTACK := 0
 
-process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+boss_wave_10 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     if en.enemy_type != 10 do return
 
     state, exists := &boss_states[en.id]
@@ -159,13 +160,114 @@ process_boss_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     }
 }
 
+FIRE_DAMAGE_PER_TICK :: 1.2
+
+boss_wave_20 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+    if en.enemy_type != 20 do return
+    state, exists := &boss_states[en.id]
+    if !exists {
+        boss_states[en.id] = Boss_State{
+            current_attack = .Normal_Attack_1,
+            attack_count = 0,
+            rest_timer = REST_DURATION,
+            first_encounter = true,
+        }
+        state = &boss_states[en.id]
+    }
+    if en.target == nil {
+        for &potential_target in gs.entities {
+            if potential_target.kind == .player {
+                en.target = &potential_target
+                break
+            }
+        }
+    }
+    if en.target == nil do return
+    x_direction := en.target.pos.x - en.pos.x
+    x_distance := abs(x_direction)
+    #partial switch en.state {
+        case .moving:
+            play_animation_by_name(&en.animations, "boss20_move")
+            if x_distance <= BOSS_ATTACK_RANGE {
+                en.state = .attacking
+                en.attack_timer = 0
+                state.current_attack = .Normal_Attack_1
+            } else if x_distance > 2.0 {
+                en.prev_pos = en.pos
+                move_direction := x_direction > 0 ? 1.0 : -1.0
+                en.pos.x += f32(move_direction) * f32(en.speed) * f32(delta_t)
+            }
+        case .attacking:
+            if x_distance > BOSS_ATTACK_RANGE {
+                en.state = .moving
+                return
+            }
+            en.prev_pos = en.pos
+            en.attack_timer -= delta_t
+            if state.current_attack == .Rest {
+                state.rest_timer -= delta_t
+                if state.rest_timer <= 0 {
+                    state.current_attack = .Normal_Attack_1
+                    state.attack_count = 0
+                    state.rest_timer = REST_DURATION
+                    en.attack_timer = 0
+                }
+                return
+            }
+            current_anim := en.animations.animations[en.animations.current_animation]
+            if current_anim.name == "boss20_move" {
+                current_anim.state = .Stopped
+            }
+
+            if en.attack_timer <= 0 && current_anim.state == .Stopped {
+                #partial switch state.current_attack {
+                    case .Normal_Attack_1:
+                        reset_and_play_animation(&en.animations, "boss20_attack", 1.0)
+                        state.damage_dealt = false
+                        en.attack_timer = BOSS_ATTACK_COOLDOWN * 2.0
+                        state.current_attack = .Normal_Attack_1
+                }
+            }
+            if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
+                if state.current_attack == .Normal_Attack_1 && anim.name == "boss20_attack" && anim.state == .Playing {
+                    DAMAGE_PER_TICK :: 1
+                    damage := process_enemy_damage(en.target, DAMAGE_PER_TICK)
+                    if damage > 0 {
+                        spawn_floating_text(
+                            gs,
+                            en.target.pos,
+                            fmt.tprintf("%d", damage),
+                            v4{1, 0.3, 0, 1}
+                        )
+                        en.target.health -= damage
+                    }
+                }
+
+                if en.attack_timer <= 0 {
+                    state.current_attack = .Rest
+                }
+
+                if anim.state == .Stopped {
+                    play_animation_by_name(&en.animations, "boss20_move")
+                }
+                if en.target.health <= 0 {
+                    en.target.health = 0
+                }
+            }
+    }
+}
+
+FIRE_BOSS_ATTACK_RANGE :: 40.0
 BOSS_ATTACK_RANGE :: 60.0
 BOSS_ATTACK_COOLDOWN :: 1.0
 ENEMY_ATTACK_RANGE :: 20.0
 ENEMY_ATTACK_COOLDOWN :: 1.5
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     if en.enemy_type == 10 {
-        process_boss_behaviour(en, gs, delta_t)
+        boss_wave_10(en, gs, delta_t)
+        return
+    }else if en.enemy_type == 20{
+        boss_wave_20(en, gs, delta_t)
         return
     }
 

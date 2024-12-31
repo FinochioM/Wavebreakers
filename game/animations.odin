@@ -79,3 +79,28 @@ setup_enemy_type_2_animations :: proc(e: ^Entity) {
 
     play_animation_by_name(&e.animations, "enemy11_19_move")
 }
+
+setup_boss_20_animations :: proc(e: ^Entity) {
+    boss20_move_frames: []Image_Id = {
+        .boss20_move1, .boss20_move2, .boss20_move3, .boss20_move4,
+        .boss20_move5, .boss20_move6, .boss20_move7, .boss20_move8,
+    }
+
+    boss20_move_anim := create_animation(boss20_move_frames, 0.14, true, "boss20_move")
+
+    boss20_attack_frames: []Image_Id = {
+        .boss20_attack1, .boss20_attack2, .boss20_attack3, .boss20_attack4,
+        .boss20_attack7, .boss20_attack6, .boss20_attack7, .boss20_attack8,
+    }
+
+    boss20_attack_anim := create_animation(boss20_attack_frames, 0.1, false, "boss20_attack")
+
+    add_animation(&e.animations, boss20_move_anim)
+    add_animation(&e.animations, boss20_attack_anim)
+
+    boss20_move_anim.state = .Playing
+    boss20_move_anim.current_frame = 0
+    boss20_move_anim.frame_timer = 0
+
+    play_animation_by_name(&e.animations, "boss20_move")
+}
