@@ -25,10 +25,17 @@ setup_boss_10_animations :: proc(e: ^Entity) {
     }
     boss10_idle_anim := create_animation(boss10_idle_frames, 0.1, false, "boss10_idle")
 
+    boss10_death_frames: []Image_Id = {
+        .boss10_death_1, .boss10_death_2, .boss10_death_3, .boss10_death_4,
+        .boss10_death_5, .boss10_death_6, .boss10_death_7
+    }
+    boss10_death_anim := create_animation(boss10_death_frames, 0.15, false, "boss10_death")
+
     add_animation(&e.animations, boss10_move_anim)
     add_animation(&e.animations, boss10_attack_anim)
     add_animation(&e.animations, boss10_attack2_anim)
     add_animation(&e.animations, boss10_idle_anim)
+    add_animation(&e.animations, boss10_death_anim)
 }
 
 
@@ -45,8 +52,14 @@ setup_enemy_type_1_animations :: proc(e: ^Entity) {
     }
     enemy_attack_anim := create_animation(enemy_attack_frames, 0.1, false, "enemy1_10_attack")
 
+    enemy_death_frames: []Image_Id = {
+        .enemy1_10_death1, .enemy1_10_death2, .enemy1_10_death3, .enemy1_10_death4,
+    }
+    enemy_death_anim := create_animation(enemy_death_frames, 0.15, false, "enemy1_10_death")
+
 	add_animation(&e.animations, enemy_move_anim)
 	add_animation(&e.animations, enemy_attack_anim)
+	add_animation(&e.animations, enemy_death_anim)
 
     enemy_attack_anim.state = .Playing
     enemy_attack_anim.current_frame = 0
@@ -80,6 +93,12 @@ setup_enemy_type_2_animations :: proc(e: ^Entity) {
     play_animation_by_name(&e.animations, "enemy11_19_move")
 }
 
+setup_enemy_type_3_animations :: proc(e: ^Entity) {
+    enemy3_move_frames: []Image_Id = {
+        
+    }
+}
+
 setup_boss_20_animations :: proc(e: ^Entity) {
     boss20_move_frames: []Image_Id = {
         .boss20_move1, .boss20_move2, .boss20_move3, .boss20_move4,
@@ -95,8 +114,15 @@ setup_boss_20_animations :: proc(e: ^Entity) {
 
     boss20_attack_anim := create_animation(boss20_attack_frames, 0.1, false, "boss20_attack")
 
+    boss20_death_frames: []Image_Id = {
+        .boss20_death1, .boss20_death2, .boss20_death3, .boss20_death4,
+        .boss20_death5,
+    }
+    boss20_death_anim := create_animation(boss20_death_frames, 0.16, false, "boss20_death")
+
     add_animation(&e.animations, boss20_move_anim)
     add_animation(&e.animations, boss20_attack_anim)
+    add_animation(&e.animations, boss20_death_anim)
 
     boss20_move_anim.state = .Playing
     boss20_move_anim.current_frame = 0

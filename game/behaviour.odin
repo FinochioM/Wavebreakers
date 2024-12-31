@@ -263,6 +263,17 @@ BOSS_ATTACK_COOLDOWN :: 1.0
 ENEMY_ATTACK_RANGE :: 20.0
 ENEMY_ATTACK_COOLDOWN :: 1.5
 process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+    if en.state == .dying {
+        if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
+            if anim.state == .Stopped {
+                process_enemy_death(gs, en)
+                entity_destroy(gs, en)
+                return
+            }
+        }
+        return
+    }
+
     if en.enemy_type == 10 {
         boss_wave_10(en, gs, delta_t)
         return
@@ -308,6 +319,8 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     	       play_animation_by_name(&en.animations, "enemy1_10_move")
     	     }else if wave_num <= 19 {
     	       play_animation_by_name(&en.animations, "enemy11_19_move")
+	        }else if wave_num <= 29{
+	           play_animation_by_name(&en.animations, "enemy21_29_move")
 	        }
 	    }
 
@@ -337,6 +350,8 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
                 reset_and_play_animation(&en.animations, "enemy1_10_attack", 1.0)
             } else if wave_num <= 19 || en.enemy_type == 2{
                 reset_and_play_animation(&en.animations, "enemy11_19_attack", 1.0)
+            }else if wave_num <= 29 || en.enemy_type == 3{
+                reset_and_play_animation(&en.animations, "enemy21_29_attack", 1.0)
             }
             en.attack_timer = ENEMY_ATTACK_COOLDOWN
         }
@@ -344,10 +359,12 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 
         if anim, ok := &en.animations.animations[en.animations.current_animation]; ok {
             if anim.state == .Stopped {
-                if wave_num <= 9{
+                if wave_num <= 9 || en.enemy_type == 1{
                     play_animation_by_name(&en.animations, "enemy1_10_move")
-                }else if wave_num <= 19{
+                }else if wave_num <= 19 || en.enemy_type == 2{
                     play_animation_by_name(&en.animations, "enemy11_19_move")
+                }else if wave_num <= 20 || en.enemy_type == 3{
+                    play_animation_by_name(&en.animations, "enemy21_29_move")
                 }
             }
 
@@ -558,8 +575,17 @@ setup_projectile :: proc(gs: ^Game_State, e: ^Entity, pos: Vector2, target_pos: 
 }
 
 when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
+    if enemy.state == .dying do return
+
+    enemy.state = .dying
+    enemy.speed = 0
+
     switch enemy.enemy_type {
+        case 1:
+            play_animation_by_name(&enemy.animations, "enemy1_10_death")
+            return
         case 10:
+            play_animation_by_name(&enemy.animations, "boss10_death")
             spawn_floating_text(
                 gs,
                 enemy.pos,
@@ -572,7 +598,12 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
                 "New Enemy Type Unlocked",
                 v4{0,1,0,1},
             )
+            return
+        case 2:
+            play_animation_by_name(&enemy.animations, "enemy11_19_death")
+            return
         case 20:
+            play_animation_by_name(&enemy.animations, "boss20_death")
             spawn_floating_text(
                 gs,
                 enemy.pos,
@@ -585,8 +616,17 @@ when_enemy_dies :: proc(gs: ^Game_State, enemy: ^Entity) {
                 "New Enemy Type Unlocked",
                 v4{0,1,0,1},
             )
+            return
+        case 3:
+            play_animation_by_name(&enemy.animations, "enemy21_29_death")
+            return
     }
 
+    process_enemy_death(gs, enemy)
+    entity_destroy(gs, enemy)
+}
+
+process_enemy_death :: proc(gs: ^Game_State, enemy: ^Entity){
     enemies_to_destroy := 0
 
     if gs.active_quest != nil && gs.active_quest.? == .Chain_Reaction {
@@ -670,7 +710,7 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
 
                 if target.entity.health <= 0 {
                     when_enemy_dies(gs, target.entity)
-                    entity_destroy(gs, target.entity)
+                    //entity_destroy(gs, target.entity)
                 }
             }
 
@@ -788,7 +828,7 @@ when_projectile_hits_enemy :: proc(gs: ^Game_State, projectile: ^Entity, enemy: 
         }
 
         when_enemy_dies(gs, enemy)
-        entity_destroy(gs, enemy)
+        //entity_destroy(gs, enemy)
     }
 }
 

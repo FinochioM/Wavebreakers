@@ -92,6 +92,7 @@ Enemy_state :: enum {
 	idle,
 	moving,
 	attacking,
+	dying,
 }
 
 Entity_Flags :: enum {
@@ -459,7 +460,8 @@ Boss_Attack_State :: enum {
     Normal_Attack_1,
     Strong_Attack,
     Fire_Attack,
-    Rest
+    Rest,
+    Dying,
 }
 
 Boss_State :: struct {
@@ -468,6 +470,7 @@ Boss_State :: struct {
     rest_timer: f32,
     first_encounter: bool,
     damage_dealt: bool,
+    death_anim_complete: bool,
 }
 
 Enemy_Attack_State :: enum {
@@ -479,6 +482,7 @@ Enemy_State :: struct {
     rest_timer: f32,
     first_encounter: bool,
     damage_dealt: bool,
+    death_anim_complete: bool,
 }
 
 Hit_State :: struct {

@@ -68,6 +68,10 @@ Image_Id :: enum {
 	enemy1_10_hit2,
 	enemy1_10_hit3,
 	enemy1_10_hit4,
+	enemy1_10_death1,
+	enemy1_10_death2,
+	enemy1_10_death3,
+	enemy1_10_death4,
 
 	// ENEMY 2
     enemy11_19_move1,
@@ -116,6 +120,13 @@ Image_Id :: enum {
 	boss10_rest_1,
 	boss10_rest_2,
 	boss10_rest_3,
+	boss10_death_1,
+	boss10_death_2,
+	boss10_death_3,
+	boss10_death_4,
+	boss10_death_5,
+	boss10_death_6,
+	boss10_death_7,
 
 	boss20_move1,
 	boss20_move2,
@@ -133,6 +144,11 @@ Image_Id :: enum {
     boss20_attack6,
     boss20_attack7,
     boss20_attack8,
+    boss20_death1,
+    boss20_death2,
+    boss20_death3,
+    boss20_death4,
+    boss20_death5,
 
 	// UI
     btn,

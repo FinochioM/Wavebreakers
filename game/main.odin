@@ -247,6 +247,8 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
             setup_enemy_type_1_animations(e)
         }else if e.enemy_type == 2{
             setup_enemy_type_2_animations(e)
+        }else if e.enemy_type == 3{
+            setup_enemy_type_3_animations(e)
         }
 
         e.value = e.enemy_type * 2
