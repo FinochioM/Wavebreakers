@@ -267,7 +267,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         if e.enemy_type == 10{
             speed_mult *= 0.3
         }else if e.enemy_type == 20{
-            speed_mult *= 0.4
+            speed_mult *= 0.15
         }
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
@@ -343,7 +343,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 19
+    gs.wave_number = 0
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
