@@ -30,24 +30,44 @@ SETTINGS_BUTTON_HEIGHT :: 20.0
 SETTINGS_PANEL_WIDTH :: 200.0
 SETTINGS_PANEL_HEIGHT :: 150.0
 
-draw_panel_background :: proc(gs: ^Game_State, bounds: AABB, scale := Vector2{1,1}) {
+draw_panel_background :: proc(gs: ^Game_State, bounds: AABB, panel_type: Panel_Type, scale := Vector2{1,1}) {
     config := get_ui_config(&gs.ui_hot_reload)
 
     pos := v2{bounds.x + config.panel_sprite_offset.x,
               bounds.y + config.panel_sprite_offset.y}
     size := v2{bounds.z - bounds.x, bounds.w - bounds.y}
-    image := images[Image_Id.border_panel]
 
-    scale_x := clamp(size.x / f32(image.width),
-                    config.panel_sprite_min_scale.x,
-                    config.panel_sprite_max_scale.x)
-    scale_y := clamp(size.y / f32(image.height),
-                    config.panel_sprite_min_scale.y,
-                    config.panel_sprite_max_scale.y)
+    panel_image: Image_Id
+    min_scale: Panel_Scale
+    max_scale: Panel_Scale
+
+    #partial switch panel_type {
+        case .Tutorial:
+            panel_image = .tutorial_panel
+            min_scale = config.tutorial_panel_sprite_min_scale
+            max_scale = config.tutorial_panel_sprite_min_scale
+        case .Settings:
+            panel_image = .settings_panel
+            min_scale = config.settings_panel_sprite_min_scale
+            max_scale = config.settings_panel_sprite_max_scale
+        case .Quest:
+            panel_image = .border_panel
+            min_scale = config.panel_sprite_min_scale
+            max_scale = config.panel_sprite_max_scale
+        case .Skills:
+            panel_image = .border_panel
+            min_scale = config.panel_sprite_min_scale
+            max_scale = config.panel_sprite_max_scale
+    }
+
+    image := images[panel_image]
+
+    scale_x := clamp(size.x / f32(image.width), min_scale.x, max_scale.x)
+    scale_y := clamp(size.y / f32(image.height), min_scale.y, max_scale.y)
 
     xform := Matrix4(1)
     xform *= xform_scale(v2{scale_x, scale_y} * scale)
-    draw_sprite(pos, .border_panel1, .bottom_left, xform)
+    draw_sprite(pos, panel_image, .bottom_left, xform)
 }
 
 create_menu_animation :: proc(gs: ^Game_State, e: ^Entity){
@@ -824,7 +844,7 @@ draw_settings_panel :: proc(gs: ^Game_State) {
         col = v4{0.2, 0.2, 0.2, 0.9},
     )*/
 
-    draw_panel_background(gs, panel_bounds)
+    draw_panel_background(gs, panel_bounds, .Settings)
 
     title_pos := v2{panel_bounds.x + config.settings_title_offset_x, panel_bounds.w - config.settings_title_offset_y}
     draw_text(title_pos, "Settings", scale = f64(config.settings_title_scale))

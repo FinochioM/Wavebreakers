@@ -32,6 +32,13 @@ Floating_Text :: struct {
     color: Vector4,
 }
 
+Panel_Type :: enum {
+    Tutorial,
+    Settings,
+    Quest,
+    Skills,
+}
+
 Game_State_Kind :: enum {
 	MENU,
 	PLAYING,
@@ -412,6 +419,24 @@ UI_Config :: struct {
     settings_sound_button_x: f32,
     settings_sound_button_y: f32,
     settings_sound_text_scale: f32,
+    settings_panel_sprite_min_scale: Panel_Scale,
+    settings_panel_sprite_max_scale: Panel_Scale,
+
+    tutorial_panel_width: f32,
+    tutorial_panel_height: f32,
+    tutorial_text_scale: f32,
+    tutorial_text_padding: f32,
+    tutorial_continue_text_scale: f32,
+    tutorial_continue_text_padding: f32,
+
+    tutorial_wave_button_offset_x: f32,
+    tutorial_wave_button_offset_y: f32,
+    tutorial_shop_button_offset_x: f32,
+    tutorial_shop_button_offset_y: f32,
+    tutorial_shop_menu_offset_x: f32,
+    tutorial_shop_menu_offset_y: f32,
+    tutorial_panel_sprite_min_scale: Panel_Scale,
+    tutorial_panel_sprite_max_scale: Panel_Scale,
 }
 
 UI_Hot_Reload :: struct {

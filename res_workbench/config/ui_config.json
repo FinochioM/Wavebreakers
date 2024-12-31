@@ -139,5 +139,36 @@
     "settings_sound_button_height": 20.0,
     "settings_sound_button_x": 0.0,
     "settings_sound_button_y": 20.0,
-    "ettings_sound_text_scale": 0.4,
+    "settings_sound_text_scale": 0.4,
+    "settings_panel_sprite_min_scale":  {
+        "x": 1.5,
+        "y": 1.5
+    },
+    "settings_panel_sprite_max_scale":{
+        "x": 10.0,
+        "y": 10.0
+    },
+
+
+    "tutorial_panel_width": 20.0,
+    "tutorial_panel_height": 30.0,
+    "tutorial_text_scale": 0.4,
+    "tutorial_text_padding": 12.0,
+    "tutorial_continue_text_scale": 0.35,
+    "tutorial_continue_text_padding": 1.0,
+
+    "tutorial_wave_button_offset_x": -65.0,
+    "tutorial_wave_button_offset_y": -15.0,
+    "tutorial_shop_button_offset_x": -65.0,
+    "tutorial_shop_button_offset_y": -15.0,
+    "tutorial_shop_menu_offset_x": -65.0,
+    "tutorial_shop_menu_offset_y": -15.0,
+    "tutorial_panel_sprite_min_scale":{
+        "x": 0.25,
+        "y": 0.4
+    },
+    "tutorial_panel_sprite_max_scale":{
+        "x": 10.0,
+        "y": 10.0
+    },
 }

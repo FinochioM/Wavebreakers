@@ -339,7 +339,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 9
+    gs.wave_number = 0
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -648,7 +648,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	case .SPLASH:
 	   draw_splash_screen(gs)
 	case .MENU:
-	   when ODIN_DEBUG{
+	   when !ODIN_DEBUG{
         draw_menu(gs)
 	   }else{
         start_new_game(gs)
@@ -1850,6 +1850,24 @@ init_ui_hot_reload :: proc() -> UI_Hot_Reload {
             settings_sound_button_x = 0.0,
             settings_sound_button_y = 10.0,
             settings_sound_text_scale = 0.4,
+            settings_panel_sprite_min_scale = Panel_Scale{0.1, 0.1},
+            settings_panel_sprite_max_scale = Panel_Scale{10.0, 10.0},
+
+            tutorial_panel_width = 200.0,
+            tutorial_panel_height = 100.0,
+            tutorial_text_scale = 0.4,
+            tutorial_text_padding = 10.0,
+            tutorial_continue_text_scale = 0.3,
+            tutorial_continue_text_padding = 10.0,
+            tutorial_wave_button_offset_x = -100.0,
+            tutorial_wave_button_offset_y = 50.0,
+            tutorial_shop_button_offset_x = -240.0,
+            tutorial_shop_button_offset_y = 50.0,
+            tutorial_shop_menu_offset_x = 0.0,
+            tutorial_shop_menu_offset_y = 0.0,
+
+            tutorial_panel_sprite_min_scale = Panel_Scale{0.1, 0.1},
+            tutorial_panel_sprite_max_scale = Panel_Scale{10.0, 10.0},
         },
     }
 
@@ -2019,19 +2037,19 @@ init_tutorial :: proc(gs: ^Game_State){
     }
 
     gs.tutorial.messages[1] = Tutorial_Message{
-        text = "Each wave gets progressively harder. Every 10th wave has a stronger Boss enemy.",
+        text = "Each wave gets progressively harder.\nEvery 10th wave has a stronger Boss enemy.",
         target_element = .Wave_Button,
         size = v2{200, 80},
     }
 
     gs.tutorial.messages[2] = Tutorial_Message{
-        text = "Open the Shop to upgrade your character using points earned from defeating enemies",
+        text = "Open the Shop to upgrade your character\nusing points earned from defeating enemies",
         target_element = .Shop_Button,
         size = v2{200, 80},
     }
 
     gs.tutorial.messages[3] = Tutorial_Message{
-        text = "Spend your points to ugprade various stats. Higher stats help you survive tougher waves.",
+        text = "Spend points to upgrade various stats.\nHigher stats help you survive tougher waves.",
         target_element = .Shop_Menu,
         size = v2{200, 80},
     }
@@ -2043,32 +2061,51 @@ draw_tutorial_message :: proc(gs: ^Game_State) {
     message, exists := gs.tutorial.messages[gs.tutorial.current_step]
     if !exists || gs.tutorial.seen_messages[gs.tutorial.current_step] do return
 
-    pos := calculate_message_position(message.target_element, message.size)
+    config := get_ui_config(&gs.ui_hot_reload)
+    pos := calculate_message_position(message.target_element, message.size, config)
 
-    draw_rect_aabb(
-        pos,
-        message.size,
-        col = v4{0.2, 0.2, 0.2, 0.9},
-    )
-
-    text_pos := pos + v2{10, message.size.y - 20}
-    draw_text(text_pos, message.text, scale = 0.4)
-
-    continue_text := "Click to continue..."
-    continue_pos := pos + v2{10,10}
-    draw_text(continue_pos, continue_text, scale = 0.3, color = v4{0.7, 0.7, 0.7, 1.0})
-}
-
-calculate_message_position :: proc(element: Tutorial_Element, size: Vector2) -> Vector2{
-    #partial switch element {
-        case .Wave_Button:
-            return v2{-100, 50}
-        case .Shop_Button:
-            return v2{-240, 50}
-        case .Shop_Menu:
-            return v2{0,0}
+    panel_bounds := AABB{
+        pos.x,
+        pos.y,
+        pos.x + config.tutorial_panel_width,
+        pos.y + config.tutorial_panel_height,
     }
 
+    draw_panel_background(gs, panel_bounds, .Tutorial)
+
+    lines := strings.split(message.text, "\n")
+    defer delete(lines)
+
+    text_pos := v2{
+        panel_bounds.x + config.tutorial_text_padding,
+        panel_bounds.w - config.tutorial_text_padding,
+    }
+
+    for line, i in lines {
+        line_pos := text_pos - v2{0, f32(i) * (16.0 * config.tutorial_text_scale)}
+        draw_text(line_pos, line, scale=f64(config.tutorial_text_scale))
+    }
+
+    continue_text := "Click to continue..."
+    continue_pos := v2{
+        panel_bounds.x + config.tutorial_text_padding,
+        panel_bounds.y + config.tutorial_continue_text_padding,
+    }
+
+    draw_text(continue_pos, continue_text,
+              scale=f64(config.tutorial_continue_text_scale),
+              color=v4{0.7, 0.7, 0.7, 1.0})
+}
+
+calculate_message_position :: proc(element: Tutorial_Element, size: Vector2, config: UI_Config) -> Vector2 {
+    #partial switch element {
+        case .Wave_Button:
+            return v2{config.tutorial_wave_button_offset_x, config.tutorial_wave_button_offset_y}
+        case .Shop_Button:
+            return v2{config.tutorial_shop_button_offset_x, config.tutorial_shop_button_offset_y}
+        case .Shop_Menu:
+            return v2{config.tutorial_shop_menu_offset_x, config.tutorial_shop_menu_offset_y}
+    }
     return v2{}
 }
 
