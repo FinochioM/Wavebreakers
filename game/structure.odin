@@ -73,6 +73,7 @@ Game_State :: struct {
     settings: Settings_State,
     tutorial: Tutorial_State,
     splash_state: Splash_State,
+    sound: FMOD_State,
 }
 
 Enemy_Target :: struct {
@@ -265,6 +266,17 @@ Animation_Collection :: struct {
     current_animation: string,
 }
 
+Panel_Scale :: struct {
+    x: f32,
+    y: f32,
+}
+
+Panel_Offset :: struct {
+    x: f32,
+    y: f32,
+}
+
+
 UI_Config :: struct {
     // General menu sizing
     menu_button_width: f32,
@@ -361,6 +373,45 @@ UI_Config :: struct {
     shop_currency_text_scale: f32,
     skills_back_button_y: f32,
     skills_back_button_x: f32,
+
+    settings_panel_width: f32,
+    settings_panel_height: f32,
+    settings_title_offset_x: f32,
+    settings_title_offset_y: f32,
+    settings_title_scale: f32,
+    settings_tutorial_button_width: f32,
+    settings_tutorial_button_height: f32,
+    settings_tutorial_button_x: f32,
+    settings_tutorial_button_y: f32,
+    settings_tutorial_text_scale: f32,
+    settings_back_button_width: f32,
+    settings_back_button_height: f32,
+    settings_back_button_x: f32,
+    settings_back_button_y: f32,
+    settings_back_text_scale: f32,
+
+    menu_play_button_width: f32,
+    menu_play_button_height: f32,
+    menu_play_button_y: f32,
+    menu_play_text_scale: f32,
+    menu_animation_scale: f32,
+    menu_animation_offset_x: f32,
+    menu_animation_offset_y: f32,
+    menu_settings_button_width: f32,
+    menu_settings_button_height: f32,
+    menu_settings_button_x: f32,
+    menu_settings_button_y: f32,
+    menu_settings_text_scale: f32,
+
+    panel_sprite_min_scale: Panel_Scale,
+    panel_sprite_max_scale: Panel_Scale,
+    panel_sprite_offset: Panel_Offset,
+
+    settings_sound_button_width: f32,
+    settings_sound_button_height: f32,
+    settings_sound_button_x: f32,
+    settings_sound_button_y: f32,
+    settings_sound_text_scale: f32,
 }
 
 UI_Hot_Reload :: struct {
@@ -435,6 +486,11 @@ Tutorial_Element :: enum {
     Shop_Menu,
 }
 
+FMOD_State :: struct {
+    playing: bool,
+    paused: bool,
+}
+
 Tutorial_State :: struct {
     enabled: bool,
     current_step: int,
@@ -445,6 +501,7 @@ Tutorial_State :: struct {
 
 Settings_State :: struct {
     tutorial_enabled: bool,
+    sound_enabled: bool,
 }
 
 Enemy_Wave_Distribution :: struct {

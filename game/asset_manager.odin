@@ -121,6 +121,8 @@ Image_Id :: enum {
 
 	// UI
     btn,
+    border_panel,
+    border_panel1,
     test1,
     test2,
     test3,

@@ -87,6 +87,10 @@ first_time_init_game_state :: proc(gs: ^Game_State) {
         tutorial_enabled = true,
     }
 
+    if gs.settings.sound_enabled {
+        play_background_music(&sound_st)
+    }
+
     init_tutorial(gs)
 
 	init_game_systems(gs)
@@ -335,7 +339,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 0
+    gs.wave_number = 9
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -644,7 +648,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 	case .SPLASH:
 	   draw_splash_screen(gs)
 	case .MENU:
-	   when !ODIN_DEBUG{
+	   when ODIN_DEBUG{
         draw_menu(gs)
 	   }else{
         start_new_game(gs)
@@ -1807,6 +1811,45 @@ init_ui_hot_reload :: proc() -> UI_Hot_Reload {
             quest_panel_height = 600.0,
             quest_entry_height = 80.0,
             quest_entry_padding = 10.0,
+
+            settings_panel_width = 200.0,
+            settings_panel_height = 150.0,
+            settings_title_offset_x = 20.0,
+            settings_title_offset_y = 30.0,
+            settings_title_scale = 0.6,
+            settings_tutorial_button_width = 120.0,
+            settings_tutorial_button_height = 20.0,
+            settings_tutorial_button_x = 0.0,
+            settings_tutorial_button_y = -10.0,
+            settings_tutorial_text_scale = 0.4,
+            settings_back_button_width = 60.0,
+            settings_back_button_height = 20.0,
+            settings_back_button_x = 0.0,
+            settings_back_button_y = 30.0,
+            settings_back_text_scale = 0.4,
+
+            menu_play_button_width = 100.0,
+            menu_play_button_height = 50.0,
+            menu_play_button_y = 500.0,
+            menu_play_text_scale = 0.5,
+            menu_animation_scale = 1.0,
+            menu_animation_offset_x = 0.0,
+            menu_animation_offset_y = 0.0,
+            menu_settings_button_width = 60.0,
+            menu_settings_button_height = 20.0,
+            menu_settings_button_x = -200.0,
+            menu_settings_button_y = 20.0,
+            menu_settings_text_scale = 0.4,
+
+            panel_sprite_min_scale = Panel_Scale{0.1, 0.1},
+            panel_sprite_max_scale = Panel_Scale{10.0, 10.0},
+            panel_sprite_offset = Panel_Offset{0, 0},
+
+            settings_sound_button_width = 120.0,
+            settings_sound_button_height = 20.0,
+            settings_sound_button_x = 0.0,
+            settings_sound_button_y = 10.0,
+            settings_sound_text_scale = 0.4,
         },
     }
 

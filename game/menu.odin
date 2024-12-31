@@ -30,6 +30,26 @@ SETTINGS_BUTTON_HEIGHT :: 20.0
 SETTINGS_PANEL_WIDTH :: 200.0
 SETTINGS_PANEL_HEIGHT :: 150.0
 
+draw_panel_background :: proc(gs: ^Game_State, bounds: AABB, scale := Vector2{1,1}) {
+    config := get_ui_config(&gs.ui_hot_reload)
+
+    pos := v2{bounds.x + config.panel_sprite_offset.x,
+              bounds.y + config.panel_sprite_offset.y}
+    size := v2{bounds.z - bounds.x, bounds.w - bounds.y}
+    image := images[Image_Id.border_panel]
+
+    scale_x := clamp(size.x / f32(image.width),
+                    config.panel_sprite_min_scale.x,
+                    config.panel_sprite_max_scale.x)
+    scale_y := clamp(size.y / f32(image.height),
+                    config.panel_sprite_min_scale.y,
+                    config.panel_sprite_max_scale.y)
+
+    xform := Matrix4(1)
+    xform *= xform_scale(v2{scale_x, scale_y} * scale)
+    draw_sprite(pos, .border_panel1, .bottom_left, xform)
+}
+
 create_menu_animation :: proc(gs: ^Game_State, e: ^Entity){
     e.kind = .menu
     e.animations = create_animation_collection()
@@ -47,6 +67,8 @@ create_menu_animation :: proc(gs: ^Game_State, e: ^Entity){
 }
 
 draw_menu :: proc(gs: ^Game_State) {
+    config := get_ui_config(&gs.ui_hot_reload)
+
     menu := find_menu(gs)
     if menu == nil {
         menu = entity_create(gs)
@@ -55,11 +77,30 @@ draw_menu :: proc(gs: ^Game_State) {
         }
     }
 
-    draw_rect_aabb(v2{ game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.background_map3)
+    draw_rect_aabb(v2{game_res_w * -0.5, game_res_h * -0.5},
+                   v2{game_res_w, game_res_h},
+                   img_id=.background_map3)
 
-	play_button := make_centered_screen_button(500, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, "PLAY")
+    play_button := make_centered_screen_button(
+        config.menu_play_button_y,
+        config.menu_play_button_width,
+        config.menu_play_button_height,
+        "PLAY",
+        text_scale = config.menu_play_text_scale
+    )
 
-	draw_settings_button(gs)
+    settings_button := make_centered_screen_button(
+        config.menu_settings_button_y,
+        config.menu_settings_button_width,
+        config.menu_settings_button_height,
+        "Settings",
+        x_offset = config.menu_settings_button_x,
+        text_scale = config.menu_settings_text_scale
+    )
+
+    if draw_screen_button(settings_button) {
+        gs.state_kind = .SETTINGS
+    }
 
     if draw_screen_button(play_button) {
         when !ODIN_DEBUG {
@@ -71,11 +112,20 @@ draw_menu :: proc(gs: ^Game_State) {
         }
     }
 
-
     when !ODIN_DEBUG {
         if menu != nil {
             update_current_animation(&menu.animations, sims_per_second)
-            draw_current_animation(&menu.animations, v2{0,0}, pivot=.center_center)
+
+            anim_pos := v2{config.menu_animation_offset_x,
+                          config.menu_animation_offset_y}
+            xform := Matrix4(1)
+            xform *= xform_scale(v2{config.menu_animation_scale,
+                                  config.menu_animation_scale})
+
+            draw_current_animation(&menu.animations,
+                                 anim_pos,
+                                 pivot=.center_center,
+                                 xform=xform)
 
             if anim, ok := &menu.animations.animations["menu_anim"]; ok {
                 if anim.state == .Stopped {
@@ -755,32 +805,37 @@ draw_settings_button :: proc(gs: ^Game_State) {
 }
 
 draw_settings_panel :: proc(gs: ^Game_State) {
-    draw_rect_aabb(v2{-2000, -2000}, v2{4000, 4000}, col = v4{0.0, 0.0, 0.0, 0.5})
+    config := get_ui_config(&gs.ui_hot_reload)
+
+    draw_rect_aabb(v2{game_res_w * -0.5, game_res_h * -0.5}, v2{game_res_w, game_res_h}, img_id=.border_panel)
 
     panel_pos := v2{0,0}
     panel_bounds := AABB {
-        panel_pos.x - SETTINGS_PANEL_WIDTH * 0.5,
-        panel_pos.y - SETTINGS_PANEL_HEIGHT * 0.5,
-        panel_pos.x + SETTINGS_PANEL_WIDTH * 0.5,
-        panel_pos.y + SETTINGS_PANEL_WIDTH * 0.5,
+        panel_pos.x - config.settings_panel_width * 0.5,
+        panel_pos.y - config.settings_panel_height * 0.5,
+        panel_pos.x + config.settings_panel_width * 0.5,
+        panel_pos.y + config.settings_panel_width * 0.5,
     }
 
-    draw_rect_aabb(
-        v2{panel_bounds.x, panel_bounds.y},
-        v2{SETTINGS_PANEL_WIDTH, SETTINGS_PANEL_HEIGHT},
-        col = v4{0.2, 0.2, 0.2, 0.9},
-    )
 
-        title_pos := v2{panel_bounds.x + 20, panel_bounds.w - 30}
-    draw_text(title_pos, "Settings", scale = 0.6)
+    /*draw_rect_aabb(
+        v2{panel_bounds.x, panel_bounds.y},
+        v2{config.settings_panel_width, config.settings_panel_height},
+        col = v4{0.2, 0.2, 0.2, 0.9},
+    )*/
+
+    draw_panel_background(gs, panel_bounds)
+
+    title_pos := v2{panel_bounds.x + config.settings_title_offset_x, panel_bounds.w - config.settings_title_offset_y}
+    draw_text(title_pos, "Settings", scale = f64(config.settings_title_scale))
 
     tutorial_button := make_screen_button(
-        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
-        f32(window_h) * 0.5 - 10,
-        SETTINGS_BUTTON_WIDTH * 2,
-        SETTINGS_BUTTON_HEIGHT,
+        f32(window_w) * 0.5 - config.settings_tutorial_button_width * 0.5 + config.settings_tutorial_button_x,
+        f32(window_h) * 0.5 + config.settings_tutorial_button_y,
+        config.settings_tutorial_button_width,
+        config.settings_tutorial_button_height,
         fmt.tprintf("Tutorial: %v", gs.settings.tutorial_enabled ? "ON" : "OFF"),
-        text_scale = 0.4,
+        text_scale = config.settings_tutorial_text_scale,
     )
 
     if draw_screen_button(tutorial_button) {
@@ -788,13 +843,28 @@ draw_settings_panel :: proc(gs: ^Game_State) {
         gs.tutorial.enabled = gs.settings.tutorial_enabled
     }
 
+    stop_sound_button := make_screen_button(
+        f32(window_w) * 0.5 - config.settings_sound_button_width * 0.5 + config.settings_sound_button_x,
+        f32(window_h) * 0.5 + config.settings_sound_button_y,
+        config.settings_sound_button_width,
+        config.settings_sound_button_height,
+        fmt.tprintf("Sound: %v", gs.settings.sound_enabled ? "ON" : "OFF"),
+        text_scale = config.settings_sound_text_scale,
+    )
+
+    if draw_screen_button(stop_sound_button) {
+        gs.settings.sound_enabled = !gs.settings.sound_enabled
+        gs.sound.playing = gs.settings.sound_enabled
+        toggle_sound(&sound_st)
+    }
+
     back_button := make_screen_button(
-        f32(window_w) * 0.5 - SETTINGS_BUTTON_WIDTH * 0.5,
-        f32(window_h) * 0.5 + 30,
-        SETTINGS_BUTTON_WIDTH,
-        SETTINGS_BUTTON_HEIGHT,
+        f32(window_w) * 0.5 - config.settings_back_button_width * 0.5 + config.settings_back_button_x,
+        f32(window_h) * 0.5 + config.settings_back_button_y,
+        config.settings_back_button_width,
+        config.settings_back_button_height,
         "Back",
-        text_scale = 0.4,
+        text_scale = config.settings_back_text_scale,
     )
 
     if draw_screen_button(back_button) {

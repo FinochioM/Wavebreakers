@@ -14,6 +14,9 @@ Sound_State :: struct {
 	bank: ^fstudio.BANK,
 	strings_bank: ^fstudio.BANK,
 	master_ch_group : ^fcore.CHANNELGROUP,
+	playing: bool,
+	paused: bool,
+	current_music: ^fstudio.EVENTINSTANCE,
 }
 sound_st: Sound_State
 
@@ -58,4 +61,36 @@ update_sound :: proc() {
 
 fmod_error_check :: proc(result: fcore.RESULT) {
 	assert(result == .OK, fcore.error_string(result))
+}
+
+stop_sound :: proc(event: ^fstudio.EVENTINSTANCE) -> bool {
+	using sound_st, fstudio
+	ok := EventInstance_Stop(event, .STOP_ALLOWFADEOUT)
+	return ok == .OK
+}
+
+toggle_sound :: proc(sound_st: ^Sound_State) {
+    if sound_st.playing {
+        if sound_st.current_music != nil {
+            stop_sound(sound_st.current_music)
+            sound_st.current_music = nil
+        }
+        sound_st.playing = false
+    } else {
+        play_background_music(sound_st)
+        sound_st.playing = true
+    }
+}
+
+play_background_music :: proc(sound_st: ^Sound_State) {
+    using fstudio
+    event_desc: ^EVENTDESCRIPTION
+    result := System_GetEvent(sound_st.system, "event:/beat", &event_desc)
+
+    if result == .OK {
+        instance: ^EVENTINSTANCE
+        fmod_error_check(EventDescription_CreateInstance(event_desc, &instance))
+        fmod_error_check(EventInstance_Start(instance))
+        sound_st.current_music = instance
+    }
 }

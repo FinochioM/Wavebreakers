@@ -86,5 +86,58 @@
     "quest_scrollbar_padding_y": 10.0,
     "quest_scroll_speed": 15.0,
     "quest_content_top_offset": 50.0,
-    "quest_content_bottom_offset": 50.0
+    "quest_content_bottom_offset": 50.0,
+
+
+
+    "settings_panel_width": 200.0,
+    "settings_panel_height": 160.0,
+    "settings_title_offset_x": 10.0,
+    "settings_title_offset_y": 30.0,
+    "settings_title_scale": 0.6,
+    "settings_tutorial_button_width": 120.0,
+    "settings_tutorial_button_height": 20.0,
+    "settings_tutorial_button_x": 0.0,
+    "settings_tutorial_button_y": -10.0,
+    "settings_tutorial_text_scale": 0.45,
+    "settings_back_button_width": 60.0,
+    "settings_back_button_height": 20.0,
+    "settings_back_button_x": 180.0,
+    "settings_back_button_y": 200.0,
+    "settings_back_text_scale": 0.5,
+
+
+
+    "menu_play_button_width": 100.0,
+    "menu_play_button_height": 30.0,
+    "menu_play_button_y": 350.0,
+    "menu_play_text_scale": 0.5,
+    "menu_animation_scale": 1.0,
+    "menu_animation_offset_x": 0.0,
+    "menu_animation_offset_y": 0.0,
+    "menu_settings_button_width": 70.0,
+    "menu_settings_button_height": 20.0,
+    "menu_settings_button_x": 0.0,
+    "menu_settings_button_y": 400.0,
+    "menu_settings_text_scale": 0.4,
+
+    "panel_sprite_min_scale": {
+        "x": 1.5,
+        "y": 1.5
+    },
+    "panel_sprite_max_scale": {
+        "x": 10.0,
+        "y": 10.0
+    },
+    "panel_sprite_offset": {
+        "x": 1,
+        "y": -15.0
+    }
+
+
+    "settings_sound_button_width": 120.0,
+    "settings_sound_button_height": 20.0,
+    "settings_sound_button_x": 0.0,
+    "settings_sound_button_y": 20.0,
+    "ettings_sound_text_scale": 0.4,
 }
