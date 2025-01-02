@@ -321,37 +321,37 @@ boss_wave_30 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
             }
 
             if en.attack_timer <= 0 && current_anim.state == .Stopped {
-                #partial switch state.current_attack {
-                    case .Normal_Attack_1:
-                        reset_and_play_animation(&en.animations, "boss30_attack", 1.0)
-                        state.damage_dealt = false
-                        en.attack_timer = BOSS_ATTACK_COOLDOWN * 1.5
-
-                        if anim, ok := &en.animations.animations["boss30_attack"]; ok{
-                            if anim.current_frame >= 7 && !state.damage_dealt {
-                                projectile := entity_create(gs)
-                                if projectile != nil{
-                                    setup_boss30_projectile(projectile, en.pos, en.target.pos, en.damage)
-                                }
-
-                                state.damage_dealt = true
-                            }
-                        }
-
-                        state.attack_count += 1
-                        if state.attack_count >= 3{
-                            state.current_attack = .Rest
-                            state.attack_count = 0
-                        }
+                if !state.damage_dealt {
+                    fmt.println("STARTING ATTACK ANIM")
+                    reset_and_play_animation(&en.animations, "boss30_attack", 1.0)
+                    en.attack_timer = BOSS_ATTACK_COOLDOWN * 1.5
                 }
             }
 
-            if anim, ok := &en.animations.animations[en.animations.current_animation]; ok{
-                if anim.state == .Stopped{
+            if anim, ok := &en.animations.animations["boss30_attack"]; ok {
+                fmt.printf("Attack animation - Frame: %v, State: %v\n", anim.current_frame, anim.state)
+
+                if anim.current_frame >= 7 && !state.damage_dealt {
+                    fmt.println("ATTACKING")
+                    projectile := entity_create(gs)
+                    if projectile != nil {
+                        setup_boss30_projectile(projectile, en.pos, en.target.pos, en.damage)
+                    }
+                    state.damage_dealt = true
+                }
+
+                if anim.state == .Stopped {
+                    state.attack_count += 1
+                    if state.attack_count >= 3 {
+                        state.current_attack = .Rest
+                        state.attack_count = 0
+                    } else {
+                        state.damage_dealt = false
+                    }
                     play_animation_by_name(&en.animations, "boss30_move")
                 }
             }
-    }
+        }
 }
 
 setup_boss30_projectile :: proc(projectile: ^Entity, start_pos: Vector2, target_pos: Vector2, damage: int){

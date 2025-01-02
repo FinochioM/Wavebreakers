@@ -335,7 +335,7 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
         }else if e.enemy_type == 20{
             speed_mult *= 0.15
         }else if e.enemy_type == 30{
-            speed_mult *= 0.3
+            speed_mult *= 0.4
         }
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
