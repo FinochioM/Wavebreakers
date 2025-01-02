@@ -74,7 +74,7 @@ setup_enemy_type_2_animations :: proc(e: ^Entity) {
         .enemy11_19_move5, .enemy11_19_move6, .enemy11_19_move7, .enemy11_19_move8,
     }
 
-    enemy2_move_anim := create_animation(enemy2_move_frames, 0.14, true, "enemy11_19_move")
+    enemy2_move_anim := create_animation(enemy2_move_frames, 0.12, true, "enemy11_19_move")
 
     enemy2_attack_frames: []Image_Id = {
         .enemy11_19_attack1, .enemy11_19_attack2, .enemy11_19_attack3, .enemy11_19_attack4,
@@ -95,8 +95,30 @@ setup_enemy_type_2_animations :: proc(e: ^Entity) {
 
 setup_enemy_type_3_animations :: proc(e: ^Entity) {
     enemy3_move_frames: []Image_Id = {
-        
+        .enemy21_29_move1, .enemy21_29_move2, .enemy21_29_move3, .enemy21_29_move4,
+        .enemy21_29_move5, .enemy21_29_move6, .enemy21_29_move7, .enemy21_29_move8,
     }
+    enemy3_move_anim := create_animation(enemy3_move_frames, 0.1, true, "enemy21_29_move")
+
+    enemy3_attack_frames: []Image_Id = {
+        .enemy21_29_attack1, .enemy21_29_attack2, .enemy21_29_attack3, .enemy21_29_attack4,
+        .enemy21_29_attack5, .enemy21_29_attack6, .enemy21_29_attack7, .enemy21_29_attack8,
+    }
+    enemy3_attack_anim := create_animation(enemy3_attack_frames, 0.12, false, "enemy21_29_attack")
+
+    enemy3_death_frames: []Image_Id = {
+        .enemy21_29_death1, .enemy21_29_death2, .enemy21_29_death3, .enemy21_29_death4,
+    }
+    enemy3_death_anim := create_animation(enemy3_death_frames, 0.12, false, "enemy21_29_death")
+
+    add_animation(&e.animations, enemy3_move_anim)
+    add_animation(&e.animations, enemy3_attack_anim)
+    add_animation(&e.animations, enemy3_death_anim)
+
+    enemy3_move_anim.state = .Playing
+    enemy3_move_anim.current_frame = 0
+    enemy3_move_anim.frame_timer = 0
+    play_animation_by_name(&e.animations, "enemy21_29_move")
 }
 
 setup_boss_20_animations :: proc(e: ^Entity) {
@@ -129,4 +151,39 @@ setup_boss_20_animations :: proc(e: ^Entity) {
     boss20_move_anim.frame_timer = 0
 
     play_animation_by_name(&e.animations, "boss20_move")
+}
+
+setup_boss_30_animations :: proc(e: ^Entity) {
+    boss30_move_frames: []Image_Id = {
+        .boss30_move1, .boss30_move2, .boss30_move3, .boss30_move4,
+        .boss30_move5, .boss30_move6, .boss30_move7, .boss30_move8,
+    }
+    boss30_move_anim := create_animation(boss30_move_frames, 0.1, true, "boss30_move")
+
+    boss30_attack_frames: []Image_Id = {
+        .boss30_attack1, .boss30_attack2, .boss30_attack3, .boss30_attack4,
+        .boss30_attack5, .boss30_attack6, .boss30_attack7, .boss30_attack8,
+        .boss30_attack9, .boss30_attack10, .boss30_attack11, .boss30_attack12,
+        .boss30_attack13,
+    }
+    boss30_attack_anim := create_animation(boss30_attack_frames, 0.1, false, "boss30_attack")
+
+    boss30_death_frames: []Image_Id = {
+        .boss30_death1, .boss30_death2, .boss30_death3, .boss30_death4,
+        .boss30_death5, .boss30_death6, .boss30_death7, .boss30_death8,
+        .boss30_death9, .boss30_death10, .boss30_death11, .boss30_death12,
+        .boss30_death13, .boss30_death14, .boss30_death15, .boss30_death16,
+        .boss30_death7, .boss30_death18,
+    }
+    boss30_death_anim := create_animation(boss30_death_frames, 0.1, false, "boss30_death")
+
+    add_animation(&e.animations, boss30_move_anim)
+    add_animation(&e.animations, boss30_attack_anim)
+    add_animation(&e.animations, boss30_death_anim)
+
+    boss30_move_anim.state = .Playing
+    boss30_move_anim.current_frame = 0
+    boss30_move_anim.frame_timer = 0
+
+    play_animation_by_name(&e.animations, "boss30_move")
 }

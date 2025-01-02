@@ -257,6 +257,133 @@ boss_wave_20 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
     }
 }
 
+boss_wave_30 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
+    if en.enemy_type != 30 do return
+    state, exists := &boss_states[en.id]
+    if !exists {
+        boss_states[en.id] = Boss_State{
+            current_attack = .Normal_Attack_1,
+            attack_count = 0,
+            rest_timer = REST_DURATION,
+            first_encounter = true,
+        }
+        state = &boss_states[en.id]
+    }
+
+    if en.target == nil {
+        for &potential_target in gs.entities {
+            if potential_target.kind == .player {
+                en.target = &potential_target
+                break
+            }
+        }
+    }
+    if en.target == nil do return
+    x_direction := en.target.pos.x - en.pos.x
+    x_distance := abs(x_direction)
+
+    #partial switch en.state{
+        case .moving:
+            play_animation_by_name(&en.animations, "boss30_move")
+            if x_distance <= RANGE_BOSS_ATTACK_RANGE {
+                en.state = .attacking
+                en.attack_timer = 0
+                state.current_attack = .Normal_Attack_1
+            } else if x_distance > 2.0 {
+                en.prev_pos = en.pos
+                move_direction := x_direction > 0 ? 1.0 : -1.0
+                en.pos.x += f32(move_direction) * f32(en.speed) * f32(delta_t)
+            }
+        case .attacking:
+            if x_distance > RANGE_BOSS_ATTACK_RANGE {
+                en.state = .moving
+                return
+            }
+
+            en.prev_pos = en.pos
+            en.attack_timer -= delta_t
+
+            if state.current_attack == .Rest {
+                state.rest_timer -= delta_t
+                if state.rest_timer <= 0 {
+                    state.current_attack = .Normal_Attack_1
+                    state.attack_count = 0
+                    state.rest_timer = REST_DURATION
+                    en.attack_timer = 0
+                }
+                play_animation_by_name(&en.animations, "boss30_move")
+                return
+            }
+
+            current_anim := en.animations.animations[en.animations.current_animation]
+            if current_anim.name == "boss30_move"{
+                current_anim.state = .Stopped
+            }
+
+            if en.attack_timer <= 0 && current_anim.state == .Stopped {
+                #partial switch state.current_attack {
+                    case .Normal_Attack_1:
+                        reset_and_play_animation(&en.animations, "boss30_attack", 1.0)
+                        state.damage_dealt = false
+                        en.attack_timer = BOSS_ATTACK_COOLDOWN * 1.5
+
+                        if anim, ok := &en.animations.animations["boss30_attack"]; ok{
+                            if anim.current_frame >= 7 && !state.damage_dealt {
+                                projectile := entity_create(gs)
+                                if projectile != nil{
+                                    setup_boss30_projectile(projectile, en.pos, en.target.pos, en.damage)
+                                }
+
+                                state.damage_dealt = true
+                            }
+                        }
+
+                        state.attack_count += 1
+                        if state.attack_count >= 3{
+                            state.current_attack = .Rest
+                            state.attack_count = 0
+                        }
+                }
+            }
+
+            if anim, ok := &en.animations.animations[en.animations.current_animation]; ok{
+                if anim.state == .Stopped{
+                    play_animation_by_name(&en.animations, "boss30_move")
+                }
+            }
+    }
+}
+
+setup_boss30_projectile :: proc(projectile: ^Entity, start_pos: Vector2, target_pos: Vector2, damage: int){
+    projectile.kind = .player_projectile
+    projectile.flags |= {.allocated}
+    projectile.pos = start_pos
+    projectile.prev_pos = start_pos
+
+    direction := linalg.normalize(target_pos - start_pos)
+    projectile.direction = direction * PROJECTILE_SPEED
+    projectile.damage = damage
+
+    projectile.animations = create_animation_collection()
+
+    boss30_projectile_move_frames: []Image_Id = {
+        .boss30_projectile_move1, .boss30_projectile_move2, .boss30_projectile_move3, .boss30_projectile_move4,
+    }
+    boss30_projectile_move_anim := create_animation(boss30_projectile_move_frames, 0.1, true, "boss30_projectile_move")
+
+    boss30_projectile_explode_frames: []Image_Id = {
+        .boss30_projectile_explode1, .boss30_projectile_explode2, .boss30_projectile_explode3, .boss30_projectile_explode4,
+        .boss30_projectile_explode5, .boss30_projectile_explode6, .boss30_projectile_explode7,
+    }
+    boss30_projectile_explode_anim := create_animation(boss30_projectile_explode_frames, 0.1, false, "boss30_projectile_explode")
+
+    add_animation(&projectile.animations, boss30_projectile_move_anim)
+    add_animation(&projectile.animations, boss30_projectile_explode_anim)
+
+    play_animation_by_name(&projectile.animations, "boss30_projectile_move")
+}
+
+RANGE_BOSS_ATTACK_RANGE :: 200.0
 FIRE_BOSS_ATTACK_RANGE :: 40.0
 BOSS_ATTACK_RANGE :: 60.0
 BOSS_ATTACK_COOLDOWN :: 1.0
@@ -279,6 +406,9 @@ process_enemy_behaviour :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
         return
     }else if en.enemy_type == 20{
         boss_wave_20(en, gs, delta_t)
+        return
+    }else if en.enemy_type == 30{
+        boss_wave_30(en, gs, delta_t)
         return
     }
 
@@ -916,11 +1046,17 @@ process_wave :: proc(gs: ^Game_State, delta_t: f64) {
 
 
             if is_boss_wave {
-                setup_enemy(enemy, v2{spawn_x, -130}, gs.current_wave_difficulty)
+                if enemy.enemy_type == 30{
+                    setup_enemy(enemy, v2{spawn_x, -130}, gs.current_wave_difficulty)
+                }else{
+                    setup_enemy(enemy, v2{spawn_x, -120}, gs.current_wave_difficulty)
+                }
             }else{
                 setup_enemy(enemy, v2{spawn_x, -115}, gs.current_wave_difficulty)
                 if enemy.enemy_type == 2{
                     enemy.pos.y = -122
+                }else if enemy.enemy_type == 3 {
+                    enemy.pos.y = -125
                 }
             }
 

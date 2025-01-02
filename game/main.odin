@@ -229,60 +229,131 @@ setup_enemy :: proc(e: ^Entity, pos: Vector2, difficulty: f32) {
 
     e.animations = create_animation_collection()
 
+    distribution := get_wave_distribution(wave_num)
+    e.enemy_type = select_enemy_type(distribution)
+
+    if e.enemy_type == 1 {
+        setup_enemy_type_1_animations(e)
+    }else if e.enemy_type == 2{
+        setup_enemy_type_2_animations(e)
+    }else if e.enemy_type == 3{
+        setup_enemy_type_3_animations(e)
+    }
+
+    config := app_state.game.wave_config
+
+    base_stats: struct {
+        health: int,
+        damage: int,
+        speed: f32,
+        health_scale: f32,
+        damage_scale: f32,
+        speed_scale: f32,
+    }
+
     if is_boss_wave {
         if wave_num == 10 {
             e.enemy_type = 10
             e.value = 50
             setup_boss_10_animations(e)
-        }else if wave_num == 20 {
+            base_stats = {
+                health = 50,
+                damage = 15,
+                speed = 40.0,
+                health_scale = config.health_scale * 1.5,
+                damage_scale = config.damage_scale * 1.2,
+                speed_scale = config.speed_scale,
+            }
+        } else if wave_num == 20 {
             e.enemy_type = 20
             e.value = 100
             setup_boss_20_animations(e)
+            base_stats = {
+                health = 80,
+                damage = 20,
+                speed = 35.0,
+                health_scale = config.health_scale * 1.8,
+                damage_scale = config.damage_scale * 1.4,
+                speed_scale = config.speed_scale,
+            }
+        } else if wave_num == 30 {
+            e.enemy_type = 30
+            e.value = 200
+            setup_boss_30_animations(e)
+            base_stats = {
+                health = 120,
+                damage = 25,
+                speed = 45.0,
+                health_scale = config.health_scale * 2.0,
+                damage_scale = config.damage_scale * 1.6,
+                speed_scale = config.speed_scale,
+            }
         }
-    }else{
-        distribution := get_wave_distribution(wave_num)
-        e.enemy_type = select_enemy_type(distribution)
-
-        if e.enemy_type == 1 {
-            setup_enemy_type_1_animations(e)
-        }else if e.enemy_type == 2{
-            setup_enemy_type_2_animations(e)
-        }else if e.enemy_type == 3{
-            setup_enemy_type_3_animations(e)
+    }else {
+        switch e.enemy_type {
+        case 1:
+            e.value = 1
+            base_stats = {
+                health = 8,
+                damage = 5,
+                speed = 25.0,
+                health_scale = config.health_scale * 0.8,
+                damage_scale = config.damage_scale * 0.8,
+                speed_scale = config.speed_scale,
+            }
+        case 2:
+            e.value = 3
+            base_stats = {
+                health = 6,
+                damage = 8,
+                speed = 30.0,
+                health_scale = config.health_scale * 0.6,
+                damage_scale = config.damage_scale * 1.3,
+                speed_scale = config.speed_scale * 1.1,
+            }
+        case 3:
+            e.value = 6
+            base_stats = {
+                health = 18,
+                damage = 3,
+                speed = 15.0,
+                health_scale = config.health_scale * 1.3,
+                damage_scale = config.damage_scale * 0.6,
+                speed_scale = config.speed_scale * 0.8,
+            }
         }
-
-        e.value = e.enemy_type * 2
     }
 
-    base_health := 12 + (e.enemy_type - 1) * 10
-    base_damage := 5 + (e.enemy_type - 1) * 3
-    base_speed := 25.0 - f32(e.enemy_type - 1) * 10.0
-
-    config := app_state.game.wave_config
     wave_num_32 := f32(app_state.game.wave_number)
-
-    health_mult := 1.0 + (config.health_scale * wave_num_32)
-    damage_mult := 1.0 + (config.damage_scale * wave_num_32)
-    speed_mult := 1.0 + (config.speed_scale * wave_num_32)
+    health_mult := 1.0 + (base_stats.health_scale * wave_num_32)
+    damage_mult := 1.0 + (base_stats.damage_scale * wave_num_32)
+    speed_mult := 1.0 + (base_stats.speed_scale * wave_num_32)
 
     if is_boss_wave {
         if e.enemy_type == 10{
             speed_mult *= 0.3
         }else if e.enemy_type == 20{
             speed_mult *= 0.15
+        }else if e.enemy_type == 30{
+            speed_mult *= 0.3
         }
         health_mult *= BOSS_STATS_MULTIPLIER
         damage_mult *= BOSS_STATS_MULTIPLIER
     }
 
+    if is_boss_wave && e.enemy_type == 30 {
+    fmt.printf("Boss30 setup - Initial speed: %v, Final speed after multipliers: %v\n",
+              base_stats.speed, base_stats.speed * speed_mult)
+    }
+
     e.pos = pos
     e.prev_pos = pos
-    e.health = int(f32(base_health) * health_mult * difficulty)
+    e.health = int(f32(base_stats.health) * health_mult * difficulty)
     e.max_health = e.health
     e.attack_timer = 0.0
-    e.damage = int(f32(base_damage) * damage_mult * difficulty)
+    e.damage = int(f32(base_stats.damage) * damage_mult * difficulty)
     e.state = .moving
-    e.speed = abs(f32(base_speed)) * speed_mult
+    e.speed = abs(f32(base_stats.speed)) * speed_mult
 }
 
 calculate_exp_for_level :: proc(level: int) -> int {
@@ -329,7 +400,7 @@ add_currency_points :: proc(gs: ^Game_State, points: int) {
 //
 
 //
-// :sim
+// :
 
 FOV_RANGE :: 220.0 // Range in which the player can detect enemies 200
 
@@ -345,7 +416,7 @@ start_new_game :: proc(gs: ^Game_State) {
     }
     clear(&gs.floating_texts)
 
-    gs.wave_number = 0
+    gs.wave_number = 29
     gs.enemies_to_spawn = 0
     gs.currency_points = 0
     gs.player_level = 0
@@ -441,9 +512,12 @@ get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
     }else if enemy.enemy_type == 2 {
         base_width = 25.0
         base_height = 20.0
-    }else if enemy.enemy_type == 20{
+    }else if enemy.enemy_type == 20 {
         base_width = 45.0
         base_height = 70.0
+    }else if enemy.enemy_type == 3 {
+        base_width = 25.0
+        base_height = 25.0
     }
 
     return AABB {
@@ -461,19 +535,19 @@ get_wave_distribution :: proc(wave_number: int) -> Enemy_Wave_Distribution {
         distribution.enemy_types[0] = 1
         distribution.probabilities[0] = 1.0
         distribution.count = 1
-    }else if wave_number <= 19 {
+    }else if wave_number <= 19 && wave_number >= 11 {
         distribution.enemy_types[0] = 1
         distribution.enemy_types[1] = 2
         distribution.probabilities[0] = 0.4
         distribution.probabilities[1] = 0.6
         distribution.count = 2
-    } else if wave_number <= 29 {
+    } else if wave_number <= 29 && wave_number >= 21{
         distribution.enemy_types[0] = 1
         distribution.enemy_types[1] = 2
         distribution.enemy_types[2] = 3
-        distribution.probabilities[0] = 0.2
+        distribution.probabilities[0] = 0.1
         distribution.probabilities[1] = 0.3
-        distribution.probabilities[2] = 0.5
+        distribution.probabilities[2] = 0.6
         distribution.count = 3
     }
 
@@ -552,9 +626,16 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 				en.attack_timer -= f32(delta_t)
 
 				targets := find_enemies_in_range(gs, en.pos, FOV_RANGE)
-
+                stop_attack: bool = false
 				if en.attack_timer <= 0 && len(targets) > 0 {
-                    play_animation_by_name(&en.animations, "attack")
+				    for target in targets{
+				        if target.entity.state == .dying{
+				            stop_attack = true
+				        }
+				    }
+				    if !stop_attack{
+                        play_animation_by_name(&en.animations, "attack")
+				    }
 
                     if anim, ok := &en.animations.animations["attack"]; ok{
                         adjust_animation_to_speed(anim, en.attack_speed)
@@ -568,6 +649,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
         					play_sound("projectile")
         				}
         				en.attack_timer = 1.0 / en.attack_speed
+				        stop_attack = false
 				    }
 				}
 
@@ -600,6 +682,7 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 					for &target in gs.entities {
 						if target.kind != .enemy do continue
 						if !(.allocated in target.flags) do continue
+						if target.state == .dying do continue
 
 						hit_box := get_enemy_collision_box(&target)
 
@@ -1747,6 +1830,9 @@ load_animation_frames :: proc(directory: string, prefix: string) -> ([]Image_Id,
 
     return frames[:], true
 }
+
+//
+// : hot reload
 
 init_ui_hot_reload :: proc() -> UI_Hot_Reload {
     hr := UI_Hot_Reload{
