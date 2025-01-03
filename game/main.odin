@@ -499,6 +499,18 @@ handle_input :: proc(gs: ^Game_State) {
 	}
 }
 
+get_player_hitbox :: proc(player: ^Entity) -> AABB {
+    player_width :: 30.0
+    player_height :: 60.0
+
+    return AABB {
+        player.pos.x - player_width / 2,
+        player.pos.y,
+        player.pos.x + player_width / 2,
+        player.pos.y + player_height,
+    }
+}
+
 get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
     base_height := f32(80.0)
     base_width := f32(60.0)
@@ -665,43 +677,69 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
                     }
                 }
 			}
-			if en.kind == .player_projectile {
-				SUB_STEPS :: 4
-				dt := f32(delta_t) / f32(SUB_STEPS)
+            if en.kind == .player_projectile {
+                SUB_STEPS :: 4
+                dt := f32(delta_t) / f32(SUB_STEPS)
 
-				en.prev_pos = en.pos
+                en.prev_pos = en.pos
 
-				for step in 0 ..< SUB_STEPS {
-					if !(.allocated in en.flags) do break
+                for step in 0 ..< SUB_STEPS {
+                    if !(.allocated in en.flags) do break
 
-					en.direction.y -= PROJECTILE_GRAVITY * dt
+                    is_boss_projectile := en.animations.current_animation == "boss30_projectile_move"
+                    if !is_boss_projectile {
+                        en.direction.y -= PROJECTILE_GRAVITY * dt
+                    }
 
-					movement := v2{en.direction.x * dt, en.direction.y * dt}
-					new_pos := en.pos + movement
+                    movement := v2{en.direction.x * dt, en.direction.y * dt}
+                    new_pos := en.pos + movement
 
-					for &target in gs.entities {
-						if target.kind != .enemy do continue
-						if !(.allocated in target.flags) do continue
-						if target.state == .dying do continue
+                    if is_boss_projectile {
+                        // Boss projectiles target the player
+                        for &target in gs.entities {
+                            if target.kind != .player do continue
+                            if !(.allocated in target.flags) do continue
 
-						hit_box := get_enemy_collision_box(&target)
+                            player_hitbox := get_player_hitbox(&target)
+                            if aabb_contains(player_hitbox, new_pos) {
+                                // Handle player hit
+                                target.health -= en.damage
+                                spawn_floating_text(gs, target.pos, fmt.tprintf("%d", en.damage), v4{1, 0, 0, 1})
 
-						if aabb_contains(hit_box, new_pos){
-						  when_projectile_hits_enemy(gs, &en, &target)
-						  entity_destroy(gs, &en)
-						  break
-						}
-					}
+                                // Play explosion animation
+                                reset_and_play_animation(&en.animations, "boss30_projectile_explode", 1.0)
+                                if anim, ok := &en.animations.animations["boss30_projectile_explode"]; ok {
+                                    if anim.state == .Stopped {
+                                        entity_destroy(gs, &en)
+                                    }
+                                }
+                                break
+                            }
+                        }
+                    } else {
+                        for &target in gs.entities {
+                            if target.kind != .enemy do continue
+                            if !(.allocated in target.flags) do continue
+                            if target.state == .dying do continue
 
-					if .allocated in en.flags {
-						en.pos = new_pos
+                            hit_box := get_enemy_collision_box(&target)
+                            if aabb_contains(hit_box, new_pos) {
+                                when_projectile_hits_enemy(gs, &en, &target)
+                                entity_destroy(gs, &en)
+                                break
+                            }
+                        }
+                    }
 
-						if linalg.length(en.pos) > 2000 || en.pos.y < -1000 {
-							entity_destroy(gs, &en)
-						}
-					}
-				}
-			}
+                    if .allocated in en.flags {
+                        en.pos = new_pos
+
+                        if linalg.length(en.pos) > 2000 || en.pos.y < -1000 {
+                            entity_destroy(gs, &en)
+                        }
+                    }
+                }
+            }
 		}
 
 		if gs.wave_number == 0 {
@@ -775,7 +813,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 				if en.kind == .enemy {
 					draw_enemy_at_pos(&en, render_pos)
 				} else if en.kind == .player_projectile {
-					draw_player_projectile_at_pos(en, render_pos)
+					draw_player_projectile_at_pos(&en, render_pos)
 				}
 			}
 		}
@@ -832,7 +870,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
 				if en.kind == .enemy {
 					draw_enemy_at_pos(&en, render_pos)
 				} else if en.kind == .player_projectile{
-					draw_player_projectile_at_pos(en, render_pos)
+					draw_player_projectile_at_pos(&en, render_pos)
 				}
 			}
 		}
@@ -868,7 +906,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
                 if en.kind == .enemy {
                     draw_enemy_at_pos(&en, render_pos)
                 } else if en.kind == .player_projectile {
-                    draw_player_projectile_at_pos(en, render_pos)
+                    draw_player_projectile_at_pos(&en, render_pos)
                 }
             }
         }
@@ -932,7 +970,7 @@ render_gameplay :: proc(gs: ^Game_State, input_state: Input_State) {
                 if en.kind == .enemy {
                     draw_enemy_at_pos(&en, render_pos)
                 } else if en.kind == .player_projectile {
-                    draw_player_projectile_at_pos(en, render_pos)
+                    draw_player_projectile_at_pos(&en, render_pos)
                 }
             }
         }
@@ -998,17 +1036,22 @@ should_spawn_projectile :: proc(en: ^Entity) -> bool {
     return false
 }
 
-draw_player_projectile_at_pos :: proc(en: Entity, pos: Vector2){
-    img := Image_Id.player_projectile
+draw_player_projectile_at_pos :: proc(en: ^Entity, pos: Vector2){
+    if en.animations.current_animation == "boss30_projectile_move" ||
+    en.animations.current_animation == "boss30_projectile_explode"{
+        draw_current_animation(&en.animations, pos + 25, pivot = .center_center)
+    }else{
+        img := Image_Id.player_projectile
 
-    angle := math.atan2(en.direction.y, en.direction.x)
-    final_angle := math.to_degrees(angle)
+        angle := math.atan2(en.direction.y, en.direction.x)
+        final_angle := math.to_degrees(angle)
 
-    xform := Matrix4(1)
-    xform *= xform_rotate(final_angle)
-    xform *= xform_scale(v2{0.62,0.62})
+        xform := Matrix4(1)
+        xform *= xform_rotate(final_angle)
+        xform *= xform_scale(v2{0.62,0.62})
 
-    draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
+        draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
+    }
 }
 
 screen_to_world_pos :: proc(screen_pos: Vector2) -> Vector2 {
