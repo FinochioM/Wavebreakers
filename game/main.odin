@@ -530,6 +530,9 @@ get_enemy_collision_box :: proc(enemy: ^Entity) -> AABB {
     }else if enemy.enemy_type == 3 {
         base_width = 25.0
         base_height = 25.0
+    }else if enemy.enemy_type == 30 {
+        base_width = 45.0
+        base_height = 60.0
     }
 
     return AABB {
@@ -553,7 +556,7 @@ get_wave_distribution :: proc(wave_number: int) -> Enemy_Wave_Distribution {
         distribution.probabilities[0] = 0.4
         distribution.probabilities[1] = 0.6
         distribution.count = 2
-    } else if wave_number <= 29 && wave_number >= 21{
+    } else if wave_number <= 29 && wave_number >= 21 {
         distribution.enemy_types[0] = 1
         distribution.enemy_types[1] = 2
         distribution.enemy_types[2] = 3
@@ -561,6 +564,16 @@ get_wave_distribution :: proc(wave_number: int) -> Enemy_Wave_Distribution {
         distribution.probabilities[1] = 0.3
         distribution.probabilities[2] = 0.6
         distribution.count = 3
+    } else if wave_number <= 39 && wave_number >= 31 {
+        distribution.enemy_types[0] = 1
+        distribution.enemy_types[1] = 2
+        distribution.enemy_types[2] = 3
+        distribution.enemy_types[3] = 4
+        distribution.probabilities[0] = 0.1
+        distribution.probabilities[1] = 0.2
+        distribution.probabilities[2] = 0.2
+        distribution.probabilities[3] = 0.6
+        distribution.count = 4
     }
 
     return distribution
@@ -678,15 +691,20 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
                 }
 			}
             if en.kind == .player_projectile {
+                if en.animations.current_animation == "boss30_projectile_explode" {
+                    en.prev_pos = en.pos
+                    continue
+                }
+
                 SUB_STEPS :: 4
                 dt := f32(delta_t) / f32(SUB_STEPS)
-
                 en.prev_pos = en.pos
 
                 for step in 0 ..< SUB_STEPS {
                     if !(.allocated in en.flags) do break
 
                     is_boss_projectile := en.animations.current_animation == "boss30_projectile_move"
+
                     if !is_boss_projectile {
                         en.direction.y -= PROJECTILE_GRAVITY * dt
                     }
@@ -695,24 +713,16 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
                     new_pos := en.pos + movement
 
                     if is_boss_projectile {
-                        // Boss projectiles target the player
                         for &target in gs.entities {
                             if target.kind != .player do continue
                             if !(.allocated in target.flags) do continue
 
                             player_hitbox := get_player_hitbox(&target)
-                            if aabb_contains(player_hitbox, new_pos) {
-                                // Handle player hit
+                            if aabb_contains_constrains(player_hitbox, new_pos) {
                                 target.health -= en.damage
                                 spawn_floating_text(gs, target.pos, fmt.tprintf("%d", en.damage), v4{1, 0, 0, 1})
-
-                                // Play explosion animation
-                                reset_and_play_animation(&en.animations, "boss30_projectile_explode", 1.0)
-                                if anim, ok := &en.animations.animations["boss30_projectile_explode"]; ok {
-                                    if anim.state == .Stopped {
-                                        entity_destroy(gs, &en)
-                                    }
-                                }
+                                en.direction = v2{0,0}
+                                reset_and_play_animation(&en.animations, "boss30_projectile_explode", 1.8)
                                 break
                             }
                         }
@@ -733,15 +743,13 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 
                     if .allocated in en.flags {
                         en.pos = new_pos
-
                         if linalg.length(en.pos) > 2000 || en.pos.y < -1000 {
                             entity_destroy(gs, &en)
                         }
                     }
                 }
             }
-		}
-
+        }
 		if gs.wave_number == 0 {
 			init_wave(gs, 1)
 		}
@@ -751,6 +759,14 @@ update_gameplay :: proc(gs: ^Game_State, delta_t: f64) {
 	    for &en in gs.entities{
 	       if .allocated in en.flags {
 	           update_current_animation(&en.animations, f32(delta_t))
+
+	           if en.kind == .player_projectile && en.animations.current_animation == "boss30_projectile_explode"{
+                   if anim, ok := &en.animations.animations["boss30_projectile_explode"]; ok {
+                        if anim.state == .Stopped {
+                            entity_destroy(gs, &en)
+                        }
+                    }
+	           }
 	       }
 	    }
 	}
@@ -1048,7 +1064,7 @@ draw_player_projectile_at_pos :: proc(en: ^Entity, pos: Vector2){
 
         xform := Matrix4(1)
         xform *= xform_rotate(final_angle)
-        xform *= xform_scale(v2{0.62,0.62})
+        xform *= xform_scale(v2{0.7,0.7})
 
         draw_sprite(pos, img, pivot = .bottom_center, xform = xform)
     }
@@ -1142,6 +1158,9 @@ aabb_contains :: proc(aabb: Vector4, p: Vector2) -> bool {
 	return (p.x >= aabb.x) && (p.x <= aabb.z) && (p.y >= aabb.y) && (p.y <= aabb.w)
 }
 
+aabb_contains_constrains :: proc(aabb: Vector4, p: Vector2) -> bool{
+    return (p.x >= aabb.x - 32.0) && (p.x <= aabb.z - 32.0) && (p.y >= aabb.y) && (p.y <= aabb.w)
+}
 
 animate_to_target_f32 :: proc(
 	value: ^f32,
@@ -1166,6 +1185,7 @@ animate_to_target_v2 :: proc(value: ^Vector2, target: Vector2, delta_t: f32, rat
 almost_equals :: proc(a: f32, b: f32, epsilon: f32 = 0.001) -> bool {
 	return abs(a - b) <= epsilon
 }
+
 //
 // :upgrades
 

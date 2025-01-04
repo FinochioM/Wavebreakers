@@ -329,10 +329,7 @@ boss_wave_30 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
             }
 
             if anim, ok := &en.animations.animations["boss30_attack"]; ok {
-                fmt.printf("Attack animation - Frame: %v, State: %v\n", anim.current_frame, anim.state)
-
                 if anim.current_frame >= 7 && !state.damage_dealt {
-                    fmt.println("ATTACKING")
                     projectile := entity_create(gs)
                     if projectile != nil {
                         setup_boss30_projectile(projectile, en.pos, en.target.pos, en.damage)
@@ -357,7 +354,7 @@ boss_wave_30 :: proc(en: ^Entity, gs: ^Game_State, delta_t: f32) {
 setup_boss30_projectile :: proc(projectile: ^Entity, start_pos: Vector2, target_pos: Vector2, damage: int){
     projectile.kind = .player_projectile
     projectile.flags |= {.allocated}
-    projectile.pos = start_pos
+    projectile.pos = start_pos + v2{-15,0}
     projectile.prev_pos = start_pos
 
     direction := linalg.normalize(target_pos - start_pos)

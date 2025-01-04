@@ -159,7 +159,8 @@ Entity :: struct {
 	cloud_data: struct {
 	   layer: Cloud_Layer,
        image: Image_Id,
-	}
+	},
+    destroy_after_animation: bool,
 }
 
 Element_Kind :: enum{
